@@ -12,8 +12,10 @@ setup(
     packages=find_packages(),
     install_requires=[
         "murmurhash3 >= 2.3.5",
-        "python-consul >= 0.6.1",
-        "git+https://bitbucket.org/angelcam/python-hmac-tokens.git#egg=hmac_tokens"
+        "python-consul >= 0.6.1"
+    ],
+    dependency_links=[
+        "https://bitbucket.org/angelcam/python-hmac-tokens/get/v1.1.2.tar.gz#egg=hmac_tokens"
     ],
     tests_require=[
         "pytest",

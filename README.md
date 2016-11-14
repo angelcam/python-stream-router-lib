@@ -8,7 +8,7 @@ the CDN.
 Add the following line into you `requirements.txt`:
 
 ```
-git+https://operutka@bitbucket.org/angelcam/python-stream-router-lib.git#egg=streamrouter
+https://bitbucket.org/angelcam/python-stream-router-lib/get/{tag}.tar.gz#egg=streamrouter
 ```
 
 and run `pip3 install -r requirements.txt`.
