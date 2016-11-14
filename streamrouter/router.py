@@ -73,6 +73,9 @@ class StreamRouter(object):
         self.__config = config
         self.__consul = ConsulClient(config, loop=loop)
 
+    async def sync(self):
+        await self.__consul.sync()
+
     def assign_rtspcon_service(self, region, resource):
         assert type(region) is str
         assert type(resource) is Resource

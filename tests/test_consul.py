@@ -31,8 +31,7 @@ def config():
 @pytest.yield_fixture
 def consul_client(config, consul, event_loop):
     client = ConsulClient(config, loop=event_loop)
-    client.add_update_callback(event_loop.stop)
-    event_loop.run_forever()
+    event_loop.run_until_complete(client.sync())
     yield client
     client.close()
 
@@ -157,8 +156,7 @@ def test_rtspcon_unhealthy_services(consul, consul_client, event_loop):
 
     masters[0]['Checks'][0]['Status'] = 'failed'
 
-    # the event loop gets stopped once the consul client is updated
-    event_loop.run_forever()
+    event_loop.run_until_complete(consul_client.sync())
 
     assert consul_client.is_healthy()
 
@@ -288,8 +286,7 @@ def test_hls_edge_node_description(consul_client):
 def test_hls_edge_unhealthy_services(consul, consul_client, event_loop):
     consul.health['rtsp-edge'][0]['Checks'][0]['Status'] = 'failed'
 
-    # the event loop gets stopped once the consul client is updated
-    event_loop.run_forever()
+    event_loop.run_until_complete(consul_client.sync())
 
     assert consul_client.is_healthy()
     assert len(consul_client.get_hls_edge_services()) == 12
@@ -372,8 +369,7 @@ def test_mjpeg_proxy_unhealthy_services(consul, consul_client, event_loop):
 
     proxies[0]['Checks'][0]['Status'] = 'failed'
 
-    # the event loop gets stopped once the consul client is updated
-    event_loop.run_forever()
+    event_loop.run_until_complete(consul_client.sync())
 
     assert consul_client.is_healthy()
 
@@ -491,8 +487,7 @@ def test_arrow_asns_unhealthy_services(consul, consul_client, event_loop):
 
     services[0]['Checks'][0]['Status'] = 'failed'
 
-    # the event loop gets stopped once the consul client is updated
-    event_loop.run_forever()
+    event_loop.run_until_complete(consul_client.sync())
 
     assert consul_client.is_healthy()
 

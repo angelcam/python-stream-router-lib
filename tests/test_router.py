@@ -35,8 +35,7 @@ def config():
 @pytest.yield_fixture
 def router(config, consul, event_loop):
     router = StreamRouter(config, loop=event_loop)
-    router.add_update_callback(event_loop.stop)
-    event_loop.run_forever()
+    event_loop.run_until_complete(router.sync())
     yield router
     router.close()
 
@@ -52,7 +51,7 @@ def set_healthy(service, node, healthy, consul, router, event_loop):
         else:
             svc['Checks'][0]['Status'] = 'failed'
 
-    event_loop.run_forever()
+    event_loop.run_until_complete(router.sync())
 
     assert router.is_healthy()
 
@@ -68,7 +67,7 @@ def set_healthy_by_svc_id(service, id, healthy, consul, router, event_loop):
         else:
             svc['Checks'][0]['Status'] = 'failed'
 
-    event_loop.run_forever()
+    event_loop.run_until_complete(router.sync())
 
     assert router.is_healthy()
 
@@ -82,14 +81,14 @@ def remove_by_tag(service, tag, consul, router, event_loop):
 
     consul.health[service] = list(services)
 
-    event_loop.run_forever()
+    event_loop.run_until_complete(router.sync())
 
     assert router.is_healthy()
 
 
 def remove_all(service, consul, router, event_loop):
     consul.health[service] = []
-    event_loop.run_forever()
+    event_loop.run_until_complete(router.sync())
     assert router.is_healthy()
 
 
@@ -223,7 +222,7 @@ def test_unhealthy_arrow_asns_services(consul, router, event_loop):
     services = consul.health.get('arrow-asns', [])
     for svc in services:
         svc['Checks'][0]['Status'] = 'failed'
-    event_loop.run_forever()
+    event_loop.run_until_complete(router.sync())
 
     assert router.is_healthy()
 

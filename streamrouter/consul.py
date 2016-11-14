@@ -126,6 +126,9 @@ class ConsulClient(object):
 
         self.__sync_task = loop.create_task(self.__sync_loop())
 
+    async def sync(self):
+        await self.__sync()
+
     async def __sync_loop(self):
         try:
             while not self.__closed:
@@ -159,8 +162,6 @@ class ConsulClient(object):
             except KeyboardInterrupt:
                 raise
             except Exception as ex:
-                import traceback
-                traceback.print_exc()
                 errors.append(ex)
 
         if errors:
