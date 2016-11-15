@@ -270,6 +270,8 @@ class ConsulClient(object):
     async def __load_arrow_asns_services(self):
         services = await self.__load_services('arrow-asns')
 
+        asns_port = self.__config.arrow_asns_port
+        asns_api_port = self.__config.arrow_asns_api_port
         rtsp_proxy_port = self.__config.arrow_asns_rtsp_proxy_port
         http_proxy_port = self.__config.arrow_asns_http_proxy_port
 
@@ -280,6 +282,8 @@ class ConsulClient(object):
             svc.healthy = svc.healthy and nhealthy
 
             svc.services = {
+                "asns": "%s:%d" % (svc.host, asns_port),
+                "asns_api": "%s:%d" % (svc.host, asns_api_port),
                 "rtsp_proxy": "%s:%d" % (svc.host, rtsp_proxy_port),
                 "http_proxy": "%s:%d" % (svc.host, http_proxy_port),
             }
