@@ -175,17 +175,17 @@ def test_hls_edge_services(consul_client):
     expected = [
         { "id": 'e1-na5.angelcam.com', "load": 268 },   # noqa
         { "id": 'e1-na4.angelcam.com', "load": 283 },   # noqa
+        { "id": 'e1-na2.angelcam.com', "load": 289 },   # noqa
         { "id": 'e1-na3.angelcam.com', "load": 289 },   # noqa
-        { "id": 'e1-na2.angelcam.com', "load": 290 },   # noqa
         { "id": 'e2-na2.angelcam.com', "load": 303 },   # noqa
-        { "id": 'e2-na3.angelcam.com', "load": 360 },   # noqa
-        { "id": 'e1-eu3.angelcam.com', "load": 448 },   # noqa
-        { "id": 'e3-eu1.angelcam.com', "load": 456 },   # noqa
+        { "id": 'e2-na3.angelcam.com', "load": 359 },   # noqa
+        { "id": 'e1-eu3.angelcam.com', "load": 447 },   # noqa
+        { "id": 'e3-eu1.angelcam.com', "load": 455 },   # noqa
         { "id": 'e3-eu2.angelcam.com', "load": 465 },   # noqa
-        { "id": 'e1-eu1.angelcam.com', "load": 470 },   # noqa
-        { "id": 'e2-eu1.angelcam.com', "load": 500 },   # noqa
+        { "id": 'e1-eu1.angelcam.com', "load": 468 },   # noqa
+        { "id": 'e2-eu1.angelcam.com', "load": 498 },   # noqa
         { "id": 'e4-eu2.angelcam.com', "load": 508 },   # noqa
-        { "id": 'e1-eu2.angelcam.com', "load": 522 },   # noqa
+        { "id": 'e1-eu2.angelcam.com', "load": 521 },   # noqa
     ]
     assert edges == expected
 
@@ -193,21 +193,21 @@ def test_hls_edge_services(consul_client):
 def test_hls_edge_tag_groups(consul_client):
     edges = get_hls_edge_services(consul_client, 'eu')
     expected = [
-        { "id": 'e1-eu3.angelcam.com', "load": 448 },   # noqa
-        { "id": 'e3-eu1.angelcam.com', "load": 456 },   # noqa
+        { "id": 'e1-eu3.angelcam.com', "load": 447 },   # noqa
+        { "id": 'e3-eu1.angelcam.com', "load": 455 },   # noqa
         { "id": 'e3-eu2.angelcam.com', "load": 465 },   # noqa
-        { "id": 'e1-eu1.angelcam.com', "load": 470 },   # noqa
-        { "id": 'e2-eu1.angelcam.com', "load": 500 },   # noqa
+        { "id": 'e1-eu1.angelcam.com', "load": 468 },   # noqa
+        { "id": 'e2-eu1.angelcam.com', "load": 498 },   # noqa
         { "id": 'e4-eu2.angelcam.com', "load": 508 },   # noqa
-        { "id": 'e1-eu2.angelcam.com', "load": 522 },   # noqa
+        { "id": 'e1-eu2.angelcam.com', "load": 521 },   # noqa
     ]
     assert edges == expected
 
     edges = get_hls_edge_services(consul_client, 'pop_eu1')
     expected = [
-        { "id": 'e3-eu1.angelcam.com', "load": 456 },   # noqa
-        { "id": 'e1-eu1.angelcam.com', "load": 470 },   # noqa
-        { "id": 'e2-eu1.angelcam.com', "load": 500 },   # noqa
+        { "id": 'e3-eu1.angelcam.com', "load": 455 },   # noqa
+        { "id": 'e1-eu1.angelcam.com', "load": 468 },   # noqa
+        { "id": 'e2-eu1.angelcam.com', "load": 498 },   # noqa
     ]
     assert edges == expected
 
@@ -215,13 +215,13 @@ def test_hls_edge_tag_groups(consul_client):
     expected = [
         { "id": 'e3-eu2.angelcam.com', "load": 465 },   # noqa
         { "id": 'e4-eu2.angelcam.com', "load": 508 },   # noqa
-        { "id": 'e1-eu2.angelcam.com', "load": 522 },   # noqa
+        { "id": 'e1-eu2.angelcam.com', "load": 521 },   # noqa
     ]
     assert edges == expected
 
     edges = get_hls_edge_services(consul_client, 'pop_eu3')
     expected = [
-        { "id": 'e1-eu3.angelcam.com', "load": 448 },   # noqa
+        { "id": 'e1-eu3.angelcam.com', "load": 447 },   # noqa
     ]
     assert edges == expected
 
@@ -229,16 +229,16 @@ def test_hls_edge_tag_groups(consul_client):
     expected = [
         { "id": 'e1-na5.angelcam.com', "load": 268 },   # noqa
         { "id": 'e1-na4.angelcam.com', "load": 283 },   # noqa
+        { "id": 'e1-na2.angelcam.com', "load": 289 },   # noqa
         { "id": 'e1-na3.angelcam.com', "load": 289 },   # noqa
-        { "id": 'e1-na2.angelcam.com', "load": 290 },   # noqa
         { "id": 'e2-na2.angelcam.com', "load": 303 },   # noqa
-        { "id": 'e2-na3.angelcam.com', "load": 360 },   # noqa
+        { "id": 'e2-na3.angelcam.com', "load": 359 },   # noqa
     ]
     assert edges == expected
 
     edges = get_hls_edge_services(consul_client, 'pop_na2')
     expected = [
-        { "id": 'e1-na2.angelcam.com', "load": 290 },   # noqa
+        { "id": 'e1-na2.angelcam.com', "load": 289 },   # noqa
         { "id": 'e2-na2.angelcam.com', "load": 303 },   # noqa
     ]
     assert edges == expected
@@ -246,7 +246,7 @@ def test_hls_edge_tag_groups(consul_client):
     edges = get_hls_edge_services(consul_client, 'pop_na3')
     expected = [
         { "id": 'e1-na3.angelcam.com', "load": 289 },   # noqa
-        { "id": 'e2-na3.angelcam.com', "load": 360 },   # noqa
+        { "id": 'e2-na3.angelcam.com', "load": 359 },   # noqa
     ]
     assert edges == expected
 

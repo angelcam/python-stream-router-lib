@@ -1,15 +1,40 @@
-import re
-import json
 import asyncio
 import consul.aio
+import json
+import logging
+import re
+
+
+logger = logging.getLogger(__name__)
+
+
+def int_or_none(value):
+    try:
+        return int(value)
+    except Exception:
+        return None
+
+
+def str_or_none(value):
+    if value is None:
+        return value
+
+    return str(value)
 
 
 class SynchronizationError(Exception):
 
     def __init__(self, inner):
-        super().__init__("Consul synchronization error")
-
+        super().__init__()
         self.inner = inner
+
+    def __str__(self):
+        if isinstance(self.inner, list):
+            cause = ', '.join(map(lambda elem: str(elem), self.inner))
+        else:
+            cause = str(self.inner)
+
+        return "Consul synchronization error, cuase: %s" % cause
 
 
 class Service(object):
@@ -28,9 +53,9 @@ class Service(object):
 
         self.kv = kv_items.get(self.id, {})
 
-        self.load = self.kv.get('bandwidth')
-        self.capacity = self.kv.get('maxBandwidth')
-        self.url_mask = self.kv.get('urlMask')
+        self.load = int_or_none(self.kv.get('bandwidth'))
+        self.capacity = int_or_none(self.kv.get('maxBandwidth'))
+        self.url_mask = str_or_none(self.kv.get('urlMask'))
 
         if 'disabled' in self.kv and self.kv['disabled'] != '0':
             self.healthy = False
@@ -162,6 +187,7 @@ class ConsulClient(object):
             except KeyboardInterrupt:
                 raise
             except Exception as ex:
+                logger.warning("Consul synchronization error")
                 errors.append(ex)
 
         if errors:
@@ -205,6 +231,7 @@ class ConsulClient(object):
         services = filter(lambda svc: svc.pop is not None, services)
         services = filter(lambda svc: svc.capacity is not None, services)
         services = filter(lambda svc: svc.url_mask is not None, services)
+        services = filter(lambda svc: svc.capacity > 0, services)
 
         services = sorted(services, key=lambda svc: svc.id)
 
@@ -218,6 +245,7 @@ class ConsulClient(object):
         services = filter(lambda svc: svc.load is not None, services)
         services = filter(lambda svc: svc.capacity is not None, services)
         services = filter(lambda svc: svc.url_mask is not None, services)
+        services = filter(lambda svc: svc.capacity > 0, services)
         services = filter(lambda svc: svc.load < svc.capacity, services)
 
         services = sorted(services, key=lambda svc: svc.load / svc.capacity)
@@ -230,6 +258,7 @@ class ConsulClient(object):
         services = filter(lambda svc: svc.pop is not None, services)
         services = filter(lambda svc: svc.capacity is not None, services)
         services = filter(lambda svc: svc.url_mask is not None, services)
+        services = filter(lambda svc: svc.capacity > 0, services)
 
         services = sorted(services, key=lambda svc: svc.id)
 
@@ -254,6 +283,7 @@ class ConsulClient(object):
 
         services = filter(lambda svc: svc.pop is not None, services)
         services = filter(lambda svc: svc.capacity is not None, services)
+        services = filter(lambda svc: svc.capacity > 0, services)
 
         services = sorted(services, key=lambda svc: svc.id)
 
@@ -264,8 +294,10 @@ class ConsulClient(object):
 
         for item in items:
             m_key = self.__re_kv_key.match(item['Key'])
+
+            # ignore keys that do not match the pattern
             if not m_key:
-                raise Exception("invalid key in Consul KV item list")
+                continue
 
             svc = m_key.group(2)
             key = m_key.group(3)
@@ -273,7 +305,11 @@ class ConsulClient(object):
             if svc not in res:
                 res[svc] = {}
 
-            res[svc][key] = self.__parse_kv_item(item)
+            try:
+                res[svc][key] = self.__parse_kv_item(item)
+            except Exception:
+                # ignore invalid keys
+                pass
 
         return res
 
@@ -300,11 +336,19 @@ class ConsulClient(object):
 
     def __on_update(self):
         for callback in self.__update_callbacks:
-            callback()
+            try:
+                callback()
+            except Exception:
+                # ignore errors in user callbacks
+                pass
 
     def __on_routing_change(self):
         for callback in self.__routing_changed_callbacks:
-            callback()
+            try:
+                callback()
+            except Exception:
+                # ignore errors in user callbacks
+                pass
 
     def get_rtspcon_services(self, tag=None):
         return self.__get_services(self.__rtspcon_services, tag)
