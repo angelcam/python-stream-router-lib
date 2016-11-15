@@ -3,6 +3,7 @@ import consul.aio
 import json
 import logging
 import re
+import sys
 
 
 logger = logging.getLogger(__name__)
@@ -187,7 +188,9 @@ class ConsulClient(object):
             except KeyboardInterrupt:
                 raise
             except Exception as ex:
-                logger.warning("Consul synchronization error")
+                logger.warning(
+                    "Consul synchronization error",
+                    exc_info=sys.exc_info())
                 errors.append(ex)
 
         if errors:
