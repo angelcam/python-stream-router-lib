@@ -3,7 +3,7 @@ class RouterConfig(object):
     consul_host = 'consul'
     consul_port = 8500
 
-    sync_period = 600
+    sync_period = 10
 
     rtspcon_secret = None
     rtspcon_ttl = 3600
