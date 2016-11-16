@@ -109,6 +109,14 @@ class StreamRouter(object):
         if pop:
             services = self.__consul.get_hls_edge_services(pop)
 
+        # if the requested POP is too loaded, use also other servers in the
+        # region (in order to avoid edge server congestion)
+        if services:
+            svc = services[0]
+            rload = svc.load / svc.capacity
+            if rload > 0.5:
+                services = []
+
         if not services:
             services = self.__consul.get_hls_edge_services(region)
 
