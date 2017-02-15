@@ -209,7 +209,8 @@ class ConsulClient(object):
     async def __load_services(self, svc_name):
         c = consul.aio.Consul(
             host=self.__config.consul_host,
-            port=self.__config.consul_port)
+            port=self.__config.consul_port,
+            loop=self.__event_loop)
 
         key = 'service/%s' % svc_name
 
