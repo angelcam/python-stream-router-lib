@@ -35,7 +35,7 @@ class SynchronizationError(Exception):
         else:
             cause = str(self.inner)
 
-        return "Consul synchronization error, cuase: %s" % cause
+        return "Consul synchronization error, cause: %s" % cause
 
 
 class Service(object):
