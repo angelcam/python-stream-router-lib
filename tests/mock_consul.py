@@ -12,7 +12,6 @@ def load_json(fname):
 
 
 class MockConsul(object):
-
     def __init__(self, loop=None):
         if loop is None:
             loop = asyncio.get_event_loop()
@@ -26,23 +25,25 @@ class MockConsul(object):
         self.__health = {}
         self.__kv = {}
 
-        self.__health['rtsp-master'] = load_json(os.path.join(hdir, "rtsp-master.json"))        # noqa
-        self.__health['rtsp-edge']   = load_json(os.path.join(hdir, "rtsp-edge.json"))          # noqa
-        self.__health['mjpeg-proxy'] = load_json(os.path.join(hdir, "mjpeg-proxy.json"))        # noqa
-        self.__health['arrow-asns']  = load_json(os.path.join(hdir, "arrow-asns.json"))         # noqa
+        self.__health['rtsp-master'] = load_json(os.path.join(hdir, "rtsp-master.json"))
+        self.__health['rtsp-edge'] = load_json(os.path.join(hdir, "rtsp-edge.json"))
+        self.__health['mp4-edge'] = load_json(os.path.join(hdir, "mp4-edge.json"))
+        self.__health['mjpeg-proxy'] = load_json(os.path.join(hdir, "mjpeg-proxy.json"))
+        self.__health['arrow-asns'] = load_json(os.path.join(hdir, "arrow-asns.json"))
 
-        self.__kv['rtsp-master'] = load_json(os.path.join(kdir, "rtsp-master.json"))            # noqa
-        self.__kv['rtsp-edge']   = load_json(os.path.join(kdir, "rtsp-edge.json"))              # noqa
-        self.__kv['mjpeg-proxy'] = load_json(os.path.join(kdir, "mjpeg-proxy.json"))            # noqa
-        self.__kv['arrow-asns']  = load_json(os.path.join(kdir, "arrow-asns.json"))             # noqa
+        self.__kv['rtsp-master'] = load_json(os.path.join(kdir, "rtsp-master.json"))
+        self.__kv['rtsp-edge'] = load_json(os.path.join(kdir, "rtsp-edge.json"))
+        self.__kv['mp4-edge'] = load_json(os.path.join(kdir, "mp4-edge.json"))
+        self.__kv['mjpeg-proxy'] = load_json(os.path.join(kdir, "mjpeg-proxy.json"))
+        self.__kv['arrow-asns'] = load_json(os.path.join(kdir, "arrow-asns.json"))
 
-        self.health = copy.deepcopy(self.__health)  # noqa
-        self.kv     = copy.deepcopy(self.__kv)      # noqa
+        self.health = copy.deepcopy(self.__health)
+        self.kv = copy.deepcopy(self.__kv)
 
         app = Application(loop=loop)
 
-        app.router.add_route('GET', r"/v1/health/service/{svc}", self.__handle_health_request)  # noqa
-        app.router.add_route('GET', r"/v1/kv/{svc:.+}",           self.__handle_kv_request)      # noqa
+        app.router.add_route('GET', r"/v1/health/service/{svc}", self.__handle_health_request)
+        app.router.add_route('GET', r"/v1/kv/{svc:.+}", self.__handle_kv_request)
 
         self.__app = app
         self.__handler = None
@@ -96,8 +97,8 @@ class MockConsul(object):
         self.__server = self.__event_loop.run_until_complete(coro)
 
     def reset(self):
-        self.health = copy.deepcopy(self.__health)  # noqa
-        self.kv     = copy.deepcopy(self.__kv)      # noqa
+        self.health = copy.deepcopy(self.__health)
+        self.kv = copy.deepcopy(self.__kv)
 
     def close(self):
         if self.__server is None:

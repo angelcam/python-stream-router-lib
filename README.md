@@ -59,28 +59,24 @@ asns = router.assign_arrow_asns_service('eu', '1234567890abcdef')
 ...
 
 # get HLS edge URL for a given camera
-url = router.construct_hls_edge_url('eu', Resource(
+route = router.construct_edge_route('eu', Resource(
     'preview-10',
     setup=Resource.ARROW,
-    arrow_uuid='1234567890abcdef'
-))
+    arrow_uuid='1234567890abcdef'),
+)
+url = route.hls_url
 
-# get MJPEG proxy URL for a given camera
-url = router.construct_mjpeg_proxy_url('eu', Resource(
+# get rtsp_con URL for a given camera
+
+route = router.construct_rtspcon_route('eu', Resource(
     '10',
     setup=Resource.ARROW,
-    arrow_uuid='1234567890abcdef'
-))
-
-...
-
-# you can also get the stream URL including information about selected
-# rtspcon/hls-edge/mjpeg-proxy services
-route = router.construct_hls_edge_route('eu', Resource(
-    '10',
-    setup=Resource.ARROW,
-    arrow_uuid='1234567890abcdef'
-))
+    arrow_uuid='1234567890abcdef')
+)
+route.hls_url
+route.mp4_url
+route.mjpeg_url
+route.snapshot_url
 ```
 
 See the `StreamRouter`, `Resource` and `XXXRoute` docs for all available

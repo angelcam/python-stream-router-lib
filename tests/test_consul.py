@@ -40,13 +40,22 @@ def get_services(getter, tag=None):
     return list(map(lambda s: s.id, getter(tag)))
 
 
-def get_hls_edge_services(consul_client, tag=None):
+def get_rtsp_edge_services(consul_client, tag=None):
     def get_load(svc):
         return round(svc.load * 1000 / svc.capacity)
 
-    edges = consul_client.get_hls_edge_services(tag)
+    edges = consul_client.get_rtsp_edge_services(tag)
 
-    return [ { "id": svc.id, "load": get_load(svc) } for svc in edges ]  # noqa
+    return [{"id": svc.id, "load": get_load(svc)} for svc in edges]
+
+
+def get_mp4_edge_services(consul_client, tag=None):
+    def get_load(svc):
+        return round(svc.load * 1000 / svc.capacity)
+
+    edges = consul_client.get_mp4_edge_services(tag)
+
+    return [{"id": svc.id, "load": get_load(svc)} for svc in edges]
 
 
 def test_update(consul_client):
@@ -147,7 +156,6 @@ def test_rtspcon_node_groups(consul_client):
     assert master.host == 'm1-eu1.angelcam.com'
     assert master.healthy
     assert master.tags == ['eu', 'pop_eu1']
-    assert master.url_mask == 'http://m1-eu1.angelcam.com/stream/%s/playlist.m3u8?token=%s'  # noqa
 
 
 def test_rtspcon_unhealthy_services(consul, consul_client, event_loop):
@@ -170,104 +178,104 @@ def test_rtspcon_unhealthy_services(consul, consul_client, event_loop):
     assert not master.healthy
 
 
-def test_hls_edge_services(consul_client):
-    edges = get_hls_edge_services(consul_client)
+def test_rtsp_edge_services(consul_client):
+    edges = get_rtsp_edge_services(consul_client)
     expected = [
-        { "id": 'e1-na5.angelcam.com', "load": 268 },   # noqa
-        { "id": 'e1-na4.angelcam.com', "load": 283 },   # noqa
-        { "id": 'e1-na2.angelcam.com', "load": 289 },   # noqa
-        { "id": 'e1-na3.angelcam.com', "load": 289 },   # noqa
-        { "id": 'e2-na2.angelcam.com', "load": 303 },   # noqa
-        { "id": 'e2-na3.angelcam.com', "load": 359 },   # noqa
-        { "id": 'e1-eu3.angelcam.com', "load": 447 },   # noqa
-        { "id": 'e3-eu1.angelcam.com', "load": 455 },   # noqa
-        { "id": 'e3-eu2.angelcam.com', "load": 465 },   # noqa
-        { "id": 'e1-eu1.angelcam.com', "load": 468 },   # noqa
-        { "id": 'e2-eu1.angelcam.com', "load": 498 },   # noqa
-        { "id": 'e4-eu2.angelcam.com', "load": 508 },   # noqa
-        { "id": 'e1-eu2.angelcam.com', "load": 521 },   # noqa
+        {"id": 'e1-na5.angelcam.com', "load": 268},
+        {"id": 'e1-na4.angelcam.com', "load": 283},
+        {"id": 'e1-na2.angelcam.com', "load": 289},
+        {"id": 'e1-na3.angelcam.com', "load": 289},
+        {"id": 'e2-na2.angelcam.com', "load": 303},
+        {"id": 'e2-na3.angelcam.com', "load": 359},
+        {"id": 'e1-eu3.angelcam.com', "load": 447},
+        {"id": 'e3-eu1.angelcam.com', "load": 455},
+        {"id": 'e3-eu2.angelcam.com', "load": 465},
+        {"id": 'e1-eu1.angelcam.com', "load": 468},
+        {"id": 'e2-eu1.angelcam.com', "load": 498},
+        {"id": 'e4-eu2.angelcam.com', "load": 508},
+        {"id": 'e1-eu2.angelcam.com', "load": 521},
     ]
     assert edges == expected
 
 
-def test_hls_edge_tag_groups(consul_client):
-    edges = get_hls_edge_services(consul_client, 'eu')
+def test_rtsp_edge_tag_groups(consul_client):
+    edges = get_rtsp_edge_services(consul_client, 'eu')
     expected = [
-        { "id": 'e1-eu3.angelcam.com', "load": 447 },   # noqa
-        { "id": 'e3-eu1.angelcam.com', "load": 455 },   # noqa
-        { "id": 'e3-eu2.angelcam.com', "load": 465 },   # noqa
-        { "id": 'e1-eu1.angelcam.com', "load": 468 },   # noqa
-        { "id": 'e2-eu1.angelcam.com', "load": 498 },   # noqa
-        { "id": 'e4-eu2.angelcam.com', "load": 508 },   # noqa
-        { "id": 'e1-eu2.angelcam.com', "load": 521 },   # noqa
+        {"id": 'e1-eu3.angelcam.com', "load": 447},
+        {"id": 'e3-eu1.angelcam.com', "load": 455},
+        {"id": 'e3-eu2.angelcam.com', "load": 465},
+        {"id": 'e1-eu1.angelcam.com', "load": 468},
+        {"id": 'e2-eu1.angelcam.com', "load": 498},
+        {"id": 'e4-eu2.angelcam.com', "load": 508},
+        {"id": 'e1-eu2.angelcam.com', "load": 521},
     ]
     assert edges == expected
 
-    edges = get_hls_edge_services(consul_client, 'pop_eu1')
+    edges = get_rtsp_edge_services(consul_client, 'pop_eu1')
     expected = [
-        { "id": 'e3-eu1.angelcam.com', "load": 455 },   # noqa
-        { "id": 'e1-eu1.angelcam.com', "load": 468 },   # noqa
-        { "id": 'e2-eu1.angelcam.com', "load": 498 },   # noqa
+        {"id": 'e3-eu1.angelcam.com', "load": 455},
+        {"id": 'e1-eu1.angelcam.com', "load": 468},
+        {"id": 'e2-eu1.angelcam.com', "load": 498},
     ]
     assert edges == expected
 
-    edges = get_hls_edge_services(consul_client, 'pop_eu2')
+    edges = get_rtsp_edge_services(consul_client, 'pop_eu2')
     expected = [
-        { "id": 'e3-eu2.angelcam.com', "load": 465 },   # noqa
-        { "id": 'e4-eu2.angelcam.com', "load": 508 },   # noqa
-        { "id": 'e1-eu2.angelcam.com', "load": 521 },   # noqa
+        {"id": 'e3-eu2.angelcam.com', "load": 465},
+        {"id": 'e4-eu2.angelcam.com', "load": 508},
+        {"id": 'e1-eu2.angelcam.com', "load": 521},
     ]
     assert edges == expected
 
-    edges = get_hls_edge_services(consul_client, 'pop_eu3')
+    edges = get_rtsp_edge_services(consul_client, 'pop_eu3')
     expected = [
-        { "id": 'e1-eu3.angelcam.com', "load": 447 },   # noqa
+        {"id": 'e1-eu3.angelcam.com', "load": 447},
     ]
     assert edges == expected
 
-    edges = get_hls_edge_services(consul_client, 'na')
+    edges = get_rtsp_edge_services(consul_client, 'na')
     expected = [
-        { "id": 'e1-na5.angelcam.com', "load": 268 },   # noqa
-        { "id": 'e1-na4.angelcam.com', "load": 283 },   # noqa
-        { "id": 'e1-na2.angelcam.com', "load": 289 },   # noqa
-        { "id": 'e1-na3.angelcam.com', "load": 289 },   # noqa
-        { "id": 'e2-na2.angelcam.com', "load": 303 },   # noqa
-        { "id": 'e2-na3.angelcam.com', "load": 359 },   # noqa
+        {"id": 'e1-na5.angelcam.com', "load": 268},
+        {"id": 'e1-na4.angelcam.com', "load": 283},
+        {"id": 'e1-na2.angelcam.com', "load": 289},
+        {"id": 'e1-na3.angelcam.com', "load": 289},
+        {"id": 'e2-na2.angelcam.com', "load": 303},
+        {"id": 'e2-na3.angelcam.com', "load": 359},
     ]
     assert edges == expected
 
-    edges = get_hls_edge_services(consul_client, 'pop_na2')
+    edges = get_rtsp_edge_services(consul_client, 'pop_na2')
     expected = [
-        { "id": 'e1-na2.angelcam.com', "load": 289 },   # noqa
-        { "id": 'e2-na2.angelcam.com', "load": 303 },   # noqa
+        {"id": 'e1-na2.angelcam.com', "load": 289},
+        {"id": 'e2-na2.angelcam.com', "load": 303},
     ]
     assert edges == expected
 
-    edges = get_hls_edge_services(consul_client, 'pop_na3')
+    edges = get_rtsp_edge_services(consul_client, 'pop_na3')
     expected = [
-        { "id": 'e1-na3.angelcam.com', "load": 289 },   # noqa
-        { "id": 'e2-na3.angelcam.com', "load": 359 },   # noqa
+        {"id": 'e1-na3.angelcam.com', "load": 289},
+        {"id": 'e2-na3.angelcam.com', "load": 359},
     ]
     assert edges == expected
 
-    edges = get_hls_edge_services(consul_client, 'pop_na4')
+    edges = get_rtsp_edge_services(consul_client, 'pop_na4')
     expected = [
-        { "id": 'e1-na4.angelcam.com', "load": 283 },   # noqa
+        {"id": 'e1-na4.angelcam.com', "load": 283},
     ]
     assert edges == expected
 
-    edges = get_hls_edge_services(consul_client, 'pop_na5')
+    edges = get_rtsp_edge_services(consul_client, 'pop_na5')
     expected = [
-        { "id": 'e1-na5.angelcam.com', "load": 268 },   # noqa
+        {"id": 'e1-na5.angelcam.com', "load": 268},
     ]
     assert edges == expected
 
-    edges = get_hls_edge_services(consul_client, 'foo')
+    edges = get_rtsp_edge_services(consul_client, 'foo')
     assert edges == []
 
 
-def test_hls_edge_node_description(consul_client):
-    edges = consul_client.get_hls_edge_services()
+def test_rtsp_edge_node_description(consul_client):
+    edges = consul_client.get_rtsp_edge_services()
 
     assert len(edges) > 0
 
@@ -280,16 +288,81 @@ def test_hls_edge_node_description(consul_client):
     assert edge.tags == ['na', 'pop_na5']
     assert edge.load is not None
     assert edge.capacity is not None
-    assert edge.url_mask == 'http://e1-na5.angelcam.com/%s/%s/playlist.m3u8?token=%s'   # noqa
 
 
-def test_hls_edge_unhealthy_services(consul, consul_client, event_loop):
+def test_mp4_edge_node_description(consul_client):
+    edges = consul_client.get_mp4_edge_services()
+
+    assert len(edges) > 0
+
+    edge = edges[0]
+
+    assert edge.node == 'e3-eu2'
+    assert edge.id == 'mp4-edge-e3-eu2.angelcam.com'
+    assert edge.host == 'e3-eu2.angelcam.com'
+    assert edge.healthy
+    assert edge.tags == ['eu', 'pop_eu2']
+    assert edge.load is not None
+    assert edge.capacity is not None
+
+
+def test_rtsp_edge_unhealthy_services(consul, consul_client, event_loop):
     consul.health['rtsp-edge'][0]['Checks'][0]['Status'] = 'failed'
 
     event_loop.run_until_complete(consul_client.sync())
 
     assert consul_client.is_healthy()
-    assert len(consul_client.get_hls_edge_services()) == 12
+    assert len(consul_client.get_rtsp_edge_services()) == 12
+
+
+def test_mp4_edge_services(consul_client):
+    edges = get_mp4_edge_services(consul_client)
+    expected = [
+        {"id": 'mp4-edge-e3-eu2.angelcam.com', "load": 410},
+        {"id": 'mp4-edge-e1-eu2.angelcam.com', "load": 449},
+        {"id": 'mp4-edge-e1-na3.angelcam.com', "load": 464},
+    ]
+    assert edges == expected
+
+
+def test_mp4_edge_tag_groups(consul_client):
+    edges = get_mp4_edge_services(consul_client, 'eu')
+    expected = [
+        {"id": 'mp4-edge-e3-eu2.angelcam.com', "load": 410},
+        {"id": 'mp4-edge-e1-eu2.angelcam.com', "load": 449},
+    ]
+    assert edges == expected
+
+    edges = get_mp4_edge_services(consul_client, 'pop_eu2')
+    expected = [
+        {"id": 'mp4-edge-e3-eu2.angelcam.com', "load": 410},
+        {"id": 'mp4-edge-e1-eu2.angelcam.com', "load": 449},
+    ]
+    assert edges == expected
+
+    edges = get_mp4_edge_services(consul_client, 'na')
+    expected = [
+        {"id": 'mp4-edge-e1-na3.angelcam.com', "load": 464},
+    ]
+    assert edges == expected
+
+    edges = get_mp4_edge_services(consul_client, 'pop_na3')
+    expected = [
+        {"id": 'mp4-edge-e1-na3.angelcam.com', "load": 464},
+    ]
+    assert edges == expected
+
+    edges = get_mp4_edge_services(consul_client, 'foo')
+    assert edges == []
+
+
+def test_mp4_edge_unhealthy_services(consul, consul_client, event_loop):
+    consul.health['mp4-edge'][0]['Checks'][0]['Status'] = 'failed'
+
+    event_loop.run_until_complete(consul_client.sync())
+
+    assert consul_client.is_healthy()
+    assert len(consul_client.get_mp4_edge_services()) == 2
 
 
 def test_mjpeg_proxy_services(consul_client):
@@ -360,7 +433,6 @@ def test_mjpeg_proxy_node_description(consul_client):
     assert proxy.host == 'mjpeg1-eu2-1.angelcam.com'
     assert proxy.healthy
     assert proxy.tags == ['eu', 'pop_eu2']
-    assert proxy.url_mask == 'http://mjpeg1-eu2-1.angelcam.com/stream/%s?token=%s'  # noqa
 
 
 def test_mjpeg_proxy_unhealthy_services(consul, consul_client, event_loop):

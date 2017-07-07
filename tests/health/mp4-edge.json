@@ -1,0 +1,297 @@
+[
+  {
+    "Service": {
+      "ID": "mp4-edge-e1-eu2.angelcam.com",
+      "Port": 8080,
+      "CreateIndex": 479901558,
+      "Tags": [
+        "eu",
+        "pop_eu2"
+      ],
+      "Service": "mp4-edge",
+      "ModifyIndex": 479901558,
+      "Address": "e1-eu2.angelcam.com",
+      "EnableTagOverride": false
+    },
+    "Node": {
+      "Node": "e1-eu2",
+      "CreateIndex": 479901558,
+      "Address": "37.187.26.191",
+      "ModifyIndex": 479901558
+    },
+    "Checks": [
+      {
+        "ServiceName": "",
+        "Status": "passing",
+        "CreateIndex": 479901558,
+        "Notes": "",
+        "ServiceID": "",
+        "Node": "e1-eu2",
+        "Output": "Agent alive and reachable",
+        "CheckID": "serfHealth",
+        "ModifyIndex": 511685058,
+        "Name": "Serf Health Status"
+      },
+      {
+        "ServiceName": "mp4-edge",
+        "Status": "passing",
+        "CreateIndex": 479901558,
+        "Notes": "",
+        "ServiceID": "mp4-edge-e1-eu2.angelcam.com",
+        "Node": "e1-eu2",
+        "Output": "OK\n",
+        "CheckID": "service:mp4-edge-e1-eu2.angelcam.com:1",
+        "ModifyIndex": 517284078,
+        "Name": "Service 'mp4-edge' check"
+      },
+      {
+        "ServiceName": "mp4-edge",
+        "Status": "passing",
+        "CreateIndex": 479901558,
+        "Notes": "",
+        "ServiceID": "mp4-edge-e1-eu2.angelcam.com",
+        "Node": "e1-eu2",
+        "Output": "Bandwidth check: OK\n",
+        "CheckID": "service:mp4-edge-e1-eu2.angelcam.com:2",
+        "ModifyIndex": 517283515,
+        "Name": "Service 'mp4-edge' check"
+      }
+    ]
+  },
+  {
+    "Service": {
+      "ID": "mp4-edge-e1-na3.angelcam.com",
+      "Port": 8080,
+      "CreateIndex": 479901558,
+      "Tags": [
+        "na",
+        "pop_na3"
+      ],
+      "Service": "mp4-edge",
+      "ModifyIndex": 479901558,
+      "Address": "e1-na3.angelcam.com",
+      "EnableTagOverride": false
+    },
+    "Node": {
+      "Node": "e1-na3",
+      "CreateIndex": 479901558,
+      "Address": "192.99.200.241",
+      "ModifyIndex": 479901558
+    },
+    "Checks": [
+      {
+        "ServiceName": "",
+        "Status": "passing",
+        "CreateIndex": 479901558,
+        "Notes": "",
+        "ServiceID": "",
+        "Node": "e1-na3",
+        "Output": "Agent alive and reachable",
+        "CheckID": "serfHealth",
+        "ModifyIndex": 516582188,
+        "Name": "Serf Health Status"
+      },
+      {
+        "ServiceName": "mp4-edge",
+        "Status": "passing",
+        "CreateIndex": 479901558,
+        "Notes": "",
+        "ServiceID": "mp4-edge-e1-na3.angelcam.com",
+        "Node": "e1-na3",
+        "Output": "OK\n",
+        "CheckID": "service:mp4-edge-e1-na3.angelcam.com:1",
+        "ModifyIndex": 516582248,
+        "Name": "Service 'mp4-edge' check"
+      },
+      {
+        "ServiceName": "mp4-edge",
+        "Status": "passing",
+        "CreateIndex": 479901558,
+        "Notes": "",
+        "ServiceID": "mp4-edge-e1-na3.angelcam.com",
+        "Node": "e1-na3",
+        "Output": "Bandwidth check: OK\n",
+        "CheckID": "service:mp4-edge-e1-na3.angelcam.com:2",
+        "ModifyIndex": 514995007,
+        "Name": "Service 'mp4-edge' check"
+      }
+    ]
+  },
+  {
+    "Service": {
+      "ID": "mp4-edge-e1-na4.angelcam.com",
+      "Port": 8080,
+      "CreateIndex": 479901558,
+      "Tags": [
+        "na",
+        "pop_na3"
+      ],
+      "Service": "mp4-edge",
+      "ModifyIndex": 479901558,
+      "Address": "e1-na4.angelcam.com",
+      "EnableTagOverride": false
+    },
+    "Node": {
+      "Node": "e1-na4",
+      "CreateIndex": 479901558,
+      "Address": "208.77.22.195",
+      "ModifyIndex": 479901558
+    },
+    "Checks": [
+      {
+        "ServiceName": "",
+        "Status": "passing",
+        "CreateIndex": 479901558,
+        "Notes": "",
+        "ServiceID": "",
+        "Node": "e1-na4",
+        "Output": "Agent alive and reachable",
+        "CheckID": "serfHealth",
+        "ModifyIndex": 514067101,
+        "Name": "Serf Health Status"
+      },
+      {
+        "ServiceName": "mp4-edge",
+        "Status": "passing",
+        "CreateIndex": 479901558,
+        "Notes": "",
+        "ServiceID": "mp4-edge-e1-na4.angelcam.com",
+        "Node": "e1-na4",
+        "Output": "OK\n",
+        "CheckID": "service:mp4-edge-e1-na4.angelcam.com:1",
+        "ModifyIndex": 517495551,
+        "Name": "Service 'mp4-edge' check"
+      },
+      {
+        "ServiceName": "mp4-edge",
+        "Status": "passing",
+        "CreateIndex": 479901558,
+        "Notes": "",
+        "ServiceID": "mp4-edge-e1-na4.angelcam.com",
+        "Node": "e1-na4",
+        "Output": "Bandwidth check: OK\n",
+        "CheckID": "service:mp4-edge-e1-na4.angelcam.com:2",
+        "ModifyIndex": 517494707,
+        "Name": "Service 'mp4-edge' check"
+      }
+    ]
+  },
+  {
+    "Service": {
+      "ID": "mp4-edge-e1-na5.angelcam.com",
+      "Port": 8080,
+      "CreateIndex": 479901558,
+      "Tags": [
+        "na",
+        "pop_na3"
+      ],
+      "Service": "mp4-edge",
+      "ModifyIndex": 479901558,
+      "Address": "e1-na5.angelcam.com",
+      "EnableTagOverride": false
+    },
+    "Node": {
+      "Node": "e1-na5",
+      "CreateIndex": 479901558,
+      "Address": "67.219.147.226",
+      "ModifyIndex": 479901558
+    },
+    "Checks": [
+      {
+        "ServiceName": "",
+        "Status": "passing",
+        "CreateIndex": 479901558,
+        "Notes": "",
+        "ServiceID": "",
+        "Node": "e1-na5",
+        "Output": "Agent alive and reachable",
+        "CheckID": "serfHealth",
+        "ModifyIndex": 514541003,
+        "Name": "Serf Health Status"
+      },
+      {
+        "ServiceName": "mp4-edge",
+        "Status": "passing",
+        "CreateIndex": 479901558,
+        "Notes": "",
+        "ServiceID": "mp4-edge-e1-na5.angelcam.com",
+        "Node": "e1-na5",
+        "Output": "OK\n",
+        "CheckID": "service:mp4-edge-e1-na5.angelcam.com:1",
+        "ModifyIndex": 517495165,
+        "Name": "Service 'mp4-edge' check"
+      },
+      {
+        "ServiceName": "mp4-edge",
+        "Status": "passing",
+        "CreateIndex": 479901558,
+        "Notes": "",
+        "ServiceID": "mp4-edge-e1-na5.angelcam.com",
+        "Node": "e1-na5",
+        "Output": "Bandwidth check: OK\n",
+        "CheckID": "service:mp4-edge-e1-na5.angelcam.com:2",
+        "ModifyIndex": 517494618,
+        "Name": "Service 'mp4-edge' check"
+      }
+    ]
+  },
+  {
+    "Service": {
+      "ID": "mp4-edge-e3-eu2.angelcam.com",
+      "Port": 8080,
+      "CreateIndex": 479901558,
+      "Tags": [
+        "eu",
+        "pop_eu2"
+      ],
+      "Service": "mp4-edge",
+      "ModifyIndex": 479901558,
+      "Address": "e3-eu2.angelcam.com",
+      "EnableTagOverride": false
+    },
+    "Node": {
+      "Node": "e3-eu2",
+      "CreateIndex": 479901558,
+      "Address": "37.187.139.198",
+      "ModifyIndex": 479901558
+    },
+    "Checks": [
+      {
+        "ServiceName": "",
+        "Status": "passing",
+        "CreateIndex": 479901558,
+        "Notes": "",
+        "ServiceID": "",
+        "Node": "e3-eu2",
+        "Output": "Agent alive and reachable",
+        "CheckID": "serfHealth",
+        "ModifyIndex": 507375506,
+        "Name": "Serf Health Status"
+      },
+      {
+        "ServiceName": "mp4-edge",
+        "Status": "passing",
+        "CreateIndex": 479901558,
+        "Notes": "",
+        "ServiceID": "mp4-edge-e3-eu2.angelcam.com",
+        "Node": "e3-eu2",
+        "Output": "OK\n",
+        "CheckID": "service:mp4-edge-e3-eu2.angelcam.com:1",
+        "ModifyIndex": 517274631,
+        "Name": "Service 'mp4-edge' check"
+      },
+      {
+        "ServiceName": "mp4-edge",
+        "Status": "passing",
+        "CreateIndex": 479901558,
+        "Notes": "",
+        "ServiceID": "mp4-edge-e3-eu2.angelcam.com",
+        "Node": "e3-eu2",
+        "Output": "Bandwidth check: OK\n",
+        "CheckID": "service:mp4-edge-e3-eu2.angelcam.com:2",
+        "ModifyIndex": 517273517,
+        "Name": "Service 'mp4-edge' check"
+      }
+    ]
+  }
+]

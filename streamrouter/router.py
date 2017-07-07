@@ -3,15 +3,26 @@ import mmh3
 import re
 import time
 
-from streamrouter.consul import ConsulClient
+from streamrouter import ConsulClient
+
+
+class NotImplementedStream(Exception):
+    def __init__(self, request_format, possible_formats):
+        self.request_stream_format = request_format
+        self.possible_formats = possible_formats
+
+
+class ServiceUnavailable(Exception):
+    def __init__(self, service_name):
+        self.service_name = service_name
 
 
 class Resource(object):
-
     COMMON = 'common'
     ARROW = 'arrow'
     AOC = 'aoc'
 
+    # camera in preview stream have id with non-numeric prefix
     re_camera_id = re.compile(r"^\D*(\d+)$")
     re_arrow_uuid = re.compile(r"^([0-9a-fA-F]{8})[0-9a-fA-F-]*$")
 
@@ -21,14 +32,12 @@ class Resource(object):
         m_camera_id = self.re_camera_id.match(camera_id)
 
         assert m_camera_id
-        assert setup in [self.COMMON, self.ARROW, self.AOC]
+        assert setup in {self.COMMON, self.ARROW, self.AOC}
         assert setup != self.ARROW or self.re_arrow_uuid.match(arrow_uuid)
 
         self.camera_id = camera_id
         self.numeric_camera_id = int(m_camera_id.group(1))
-
         self.setup = setup
-
         self.arrow_uuid = arrow_uuid
 
     def is_arrow_setup(self):
@@ -36,39 +45,125 @@ class Resource(object):
 
 
 class Route(object):
+    STREAM_FORMAT_HLS = "hls"
+    STREAM_FORMAT_MP4 = "mp4"
+    STREAM_FORMAT_MJPEG = "mjpeg"
+    LIVE_SNAPSHOT = "snapshot"
 
-    def __init__(self, url, token):
-        self.url = url
+    url_mask = None
+    possible_streams = {}
+
+    def __init__(self, token, resource):
         self.token = token
+        self.resource = resource
+
+    def get_url(self, stream_format):
+        if stream_format in self.possible_streams:
+            kwargs = self._get_kwargs(stream_format=stream_format)
+            return self.url_mask.format(**kwargs)
+        else:
+            raise NotImplementedStream(stream_format, self.possible_streams)
+
+    def _host(self, stream_format):
+        service = self._service(stream_format)
+        if service['service'] is not None:
+            return service['service'].host
+        else:
+            raise ServiceUnavailable(service['name'])
+
+    def _service(self, stream_format):
+        raise NotImplementedError
+
+    def _get_kwargs(self, stream_format):
+        return {
+            'host': self._host(stream_format),
+            'camera_id': self.resource.camera_id,
+            'token': self.token,
+            'stream_name': self.possible_streams[stream_format]
+        }
+
+    @property
+    def mjpeg_url(self):
+        return self.get_url(self.STREAM_FORMAT_MJPEG)
+
+    @property
+    def hls_url(self):
+        return self.get_url(self.STREAM_FORMAT_HLS)
+
+    @property
+    def mp4_url(self):
+        return self.get_url(self.STREAM_FORMAT_MP4)
+
+    @property
+    def snapshot_url(self):
+        return self.get_url(self.LIVE_SNAPSHOT)
 
 
 class RtspconRoute(Route):
+    url_mask = 'https://{host}/stream/{camera_id}/{stream_name}?token={token}'
 
-    def __init__(self, url, token, master):
-        super().__init__(url, token)
+    possible_streams = {
+        Route.STREAM_FORMAT_HLS: 'playlist.m3u8',
+        Route.STREAM_FORMAT_MP4: 'stream.mp4',
+        Route.STREAM_FORMAT_MJPEG: 'stream.mjpeg',
+        Route.LIVE_SNAPSHOT: 'snapshot.jpg'
+    }
 
+    def __init__(self, resource, token, master):
+        super().__init__(token, resource)
         self.master = master
 
+    def _service(self, stream_format):
+        return {'name': 'rtsp-master', 'service': self.master}
 
-class HlsEdgeRoute(Route):
 
-    def __init__(self, url, token, master, edge):
-        super().__init__(url, token)
+class EdgeRoute(RtspconRoute):
+    url_mask = 'https://{host}/{master}/{camera_id}/{stream_name}?token={token}'
 
-        self.master = master
-        self.edge = edge
+    possible_streams = {
+        Route.STREAM_FORMAT_HLS: 'playlist.m3u8',
+        Route.STREAM_FORMAT_MP4: 'stream.mp4',
+    }
+
+    def __init__(self, resource, token, master, rtsp_edge, mp4_edge):
+        super().__init__(resource, token, master)
+        self.rtsp_edge = rtsp_edge
+        self.mp4_edge = mp4_edge
+
+    def _service(self, stream_format):
+        if self.master is None:
+            raise ServiceUnavailable('rtsp-master')
+        if stream_format == self.STREAM_FORMAT_MP4:
+            return {'name': 'mp4-edge', 'service': self.mp4_edge}
+        return {'name': 'rtsp-edge', 'service': self.rtsp_edge}
+
+    @property
+    def master_key(self):
+        return self.master.id.replace('rtsp-master-', '')
+
+    def _get_kwargs(self, stream_format, **kwargs):
+        kwargs = super()._get_kwargs(stream_format=stream_format)
+        kwargs['master'] = self.master_key
+        return kwargs
 
 
 class MjpegProxyRoute(Route):
+    url_mask = 'https://{host}/{stream_name}/{camera_id}?token={token}'
 
-    def __init__(self, url, token, proxy):
-        super().__init__(url, token)
+    possible_streams = {
+        Route.STREAM_FORMAT_MJPEG: 'stream',
+        Route.LIVE_SNAPSHOT: 'snapshot'
+    }
 
+    def __init__(self, resource, token, proxy):
+        super().__init__(token, resource)
         self.proxy = proxy
+
+    def _service(self, stream_format):
+        return {'name': 'mjpeg-proxy', 'service': self.proxy}
 
 
 class StreamRouter(object):
-
     def __init__(self, config, loop=None):
         self.__config = config
         self.__consul = ConsulClient(config, loop=loop)
@@ -100,14 +195,14 @@ class StreamRouter(object):
 
         return service
 
-    def assign_hls_edge_service(self, region, pop=None):
+    def assign_rtsp_edge_service(self, region, pop=None):
         assert type(region) is str
         assert pop is None or type(pop) is str
 
         services = []
 
         if pop:
-            services = self.__consul.get_hls_edge_services(pop)
+            services = self.__consul.get_rtsp_edge_services(pop)
 
         # if the requested POP is too loaded, use also other servers in the
         # region (in order to avoid edge server congestion)
@@ -118,10 +213,38 @@ class StreamRouter(object):
                 services = []
 
         if not services:
-            services = self.__consul.get_hls_edge_services(region)
+            services = self.__consul.get_rtsp_edge_services(region)
 
         if not services:
-            services = self.__consul.get_hls_edge_services()
+            services = self.__consul.get_rtsp_edge_services()
+
+        if services:
+            return services[0]
+
+        return None
+
+    def assign_mp4_edge_service(self, region, pop=None):
+        assert type(region) is str
+        assert pop is None or type(pop) is str
+
+        services = []
+
+        if pop:
+            services = self.__consul.get_mp4_edge_services(pop)
+
+        # if the requested POP is too loaded, use also other servers in the
+        # region (in order to avoid edge server congestion)
+        if services:
+            svc = services[0]
+            rload = svc.load / svc.capacity
+            if rload > 0.5:
+                services = []
+
+        if not services:
+            services = self.__consul.get_mp4_edge_services(region)
+
+        if not services:
+            services = self.__consul.get_mp4_edge_services()
 
         if services:
             return services[0]
@@ -160,61 +283,26 @@ class StreamRouter(object):
 
         return self.__capacity_aware_routing_algorithm(services, n)
 
-    def construct_rtspcon_url(self, region, resource, ttl=None):
-        route = self.construct_rtspcon_route(region, resource, ttl=ttl)
-        if route:
-            return route.url
-
-        return None
-
-    def construct_hls_edge_url(self, region, resource, ttl=None):
-        route = self.construct_hls_edge_route(region, resource, ttl=ttl)
-        if route:
-            return route.url
-
-        return None
-
-    def construct_mjpeg_proxy_url(self, region, resource, ttl=None):
-        route = self.construct_mjpeg_proxy_route(region, resource, ttl=ttl)
-        if route:
-            return route.url
-
-        return None
-
     def construct_rtspcon_route(self, region, resource, ttl=None):
         master = self.assign_rtspcon_service(region, resource)
-        if not master:
-            return None
 
         token = self.get_rtspcon_token(resource.camera_id, ttl=ttl)
-        url = master.url_mask % (resource.camera_id, token)
+        return RtspconRoute(resource, token, master)
 
-        return RtspconRoute(url, token, master)
-
-    def construct_hls_edge_route(self, region, resource, ttl=None):
+    def construct_edge_route(self, region, resource, ttl=None):
         master = self.assign_rtspcon_service(region, resource)
-        if not master:
-            return None
-
-        edge = self.assign_hls_edge_service(region, master.pop)
-        if not edge:
-            return None
-
+        pop = None
+        if master is not None:
+            pop = master.pop
+        rtsp_edge = self.assign_rtsp_edge_service(region, pop)
+        mp4_edge = self.assign_mp4_edge_service(region, pop)
         token = self.get_rtspcon_token(resource.camera_id, ttl=ttl)
-        mkey = master.id.replace('rtsp-master-', '')
-        url = edge.url_mask % (mkey, resource.camera_id, token)
-
-        return HlsEdgeRoute(url, token, master, edge)
+        return EdgeRoute(resource, token, master, rtsp_edge, mp4_edge)
 
     def construct_mjpeg_proxy_route(self, region, resource, ttl=None):
         proxy = self.assign_mjpeg_proxy_service(region, resource)
-        if not proxy:
-            return None
-
         token = self.get_mjpeg_proxy_token(resource.camera_id, ttl=ttl)
-        url = proxy.url_mask % (resource.camera_id, token)
-
-        return MjpegProxyRoute(url, token, proxy)
+        return MjpegProxyRoute(resource, token, proxy)
 
     def get_rtspcon_token(self, camera_id, ttl=None):
         if ttl is None:
@@ -272,8 +360,8 @@ class StreamRouter(object):
         n = self.__get_hash(n) & 0x00ffffff
 
         while services:
-            sf = (1 << 24) / tc     # capacity scaling factor
-            cc = 0                  # cumulative capacity
+            sf = (1 << 24) / tc  # capacity scaling factor
+            cc = 0  # cumulative capacity
             i = 0
 
             # get interval index
