@@ -2,8 +2,11 @@ import hmac_tokens
 import mmh3
 import re
 import time
+import logging
 
 from streamrouter import ConsulClient
+
+logger = logging.getLogger(__name__)
 
 
 class NotImplementedStream(Exception):
@@ -183,16 +186,20 @@ class StreamRouter(object):
                 return None
 
             services = self.__consul.get_rtspcon_services_by_node_id(asns.node)
-
-            return self.__capacity_aware_routing_algorithm(services, n)
+            service = self.__capacity_aware_routing_algorithm(services, n)
+            if not service:
+                logger.error("No RTSPCon services available with requested node id.", node_id=asns.node)
+            return service
 
         services = self.__consul.get_rtspcon_services(region)
         service = self.__capacity_aware_routing_algorithm(services, n)
 
         if not service:
+            logger.warning("No RTSPCon services available in the region.", region=region)
             services = self.__consul.get_rtspcon_services()
             service = self.__capacity_aware_routing_algorithm(services, n)
-
+        if not service:
+            logger.error("No RTSPCon services available at all.")
         return service
 
     def assign_rtsp_edge_service(self, region, pop=None):
@@ -213,14 +220,17 @@ class StreamRouter(object):
                 services = []
 
         if not services:
+            logger.warning("No RTSP Edge services available with requested POP.", region=region, pop=pop)
             services = self.__consul.get_rtsp_edge_services(region)
 
         if not services:
+            logger.warning("No RTSP Edge services available in the region.", region=region)
             services = self.__consul.get_rtsp_edge_services()
 
         if services:
             return services[0]
 
+        logger.error("No RTSP Edge services available at all.")
         return None
 
     def assign_mp4_edge_service(self, region, pop=None):
@@ -241,14 +251,17 @@ class StreamRouter(object):
                 services = []
 
         if not services:
+            logger.warning("No MP4 Edge services available with requested POP.", region=region, pop=pop)
             services = self.__consul.get_mp4_edge_services(region)
 
         if not services:
+            logger.warning("No MP4 Edge services available in the region.", region=region)
             services = self.__consul.get_mp4_edge_services()
 
         if services:
             return services[0]
 
+        logger.error("No MP4 Edge services available at all.")
         return None
 
     def assign_mjpeg_proxy_service(self, region, resource):
@@ -266,9 +279,12 @@ class StreamRouter(object):
         service = self.__capacity_aware_routing_algorithm(services, n)
 
         if not service:
+            logger.warning("No MJPEG proxy services available in the region.", region=region)
             services = self.__consul.get_mjpeg_proxy_services()
             service = self.__capacity_aware_routing_algorithm(services, n)
 
+        if not service:
+            logger.error("No MJPEG proxy services available at all.")
         return service
 
     def assign_arrow_asns_service(self, region, arrow_uuid):
@@ -280,8 +296,11 @@ class StreamRouter(object):
         n = int(m_arrow_uuid.group(1), 16)
 
         services = self.__consul.get_arrow_asns_services(region)
+        service = self.__capacity_aware_routing_algorithm(services, n)
 
-        return self.__capacity_aware_routing_algorithm(services, n)
+        if not service:
+            logger.error("No ASNS services available in the region.", region=region)
+        return service
 
     def construct_rtspcon_route(self, region, resource, ttl=None):
         master = self.assign_rtspcon_service(region, resource)

@@ -4,7 +4,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="streamrouter",
-    version='2.0.0',
+    version='2.0.1',
     description="Angelcam stream router library",
     keywords="asyncio stream router",
     author="Angelcam",
