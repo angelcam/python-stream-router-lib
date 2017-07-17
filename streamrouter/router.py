@@ -188,14 +188,14 @@ class StreamRouter(object):
             services = self.__consul.get_rtspcon_services_by_node_id(asns.node)
             service = self.__capacity_aware_routing_algorithm(services, n)
             if not service:
-                logger.error("No RTSPCon services available with requested node id.", node_id=asns.node)
+                logger.error("No RTSPCon services available with requested node id.", extra={'node_id': asns.node})
             return service
 
         services = self.__consul.get_rtspcon_services(region)
         service = self.__capacity_aware_routing_algorithm(services, n)
 
         if not service:
-            logger.warning("No RTSPCon services available in the region.", region=region)
+            logger.warning("No RTSPCon services available in the region.", extra={'region': region})
             services = self.__consul.get_rtspcon_services()
             service = self.__capacity_aware_routing_algorithm(services, n)
         if not service:
@@ -220,11 +220,11 @@ class StreamRouter(object):
                 services = []
 
         if not services:
-            logger.warning("No RTSP Edge services available with requested POP.", region=region, pop=pop)
+            logger.warning("No RTSP Edge services available with requested POP.", extra={'region': region, 'pop': pop})
             services = self.__consul.get_rtsp_edge_services(region)
 
         if not services:
-            logger.warning("No RTSP Edge services available in the region.", region=region)
+            logger.warning("No RTSP Edge services available in the region.", extra={'region': region})
             services = self.__consul.get_rtsp_edge_services()
 
         if services:
@@ -251,11 +251,11 @@ class StreamRouter(object):
                 services = []
 
         if not services:
-            logger.warning("No MP4 Edge services available with requested POP.", region=region, pop=pop)
+            logger.warning("No MP4 Edge services available with requested POP.", extra={'region': region, 'pop': pop})
             services = self.__consul.get_mp4_edge_services(region)
 
         if not services:
-            logger.warning("No MP4 Edge services available in the region.", region=region)
+            logger.warning("No MP4 Edge services available in the region.", extra={'region': region})
             services = self.__consul.get_mp4_edge_services()
 
         if services:
@@ -279,7 +279,7 @@ class StreamRouter(object):
         service = self.__capacity_aware_routing_algorithm(services, n)
 
         if not service:
-            logger.warning("No MJPEG proxy services available in the region.", region=region)
+            logger.warning("No MJPEG proxy services available in the region.", extra={'region': region})
             services = self.__consul.get_mjpeg_proxy_services()
             service = self.__capacity_aware_routing_algorithm(services, n)
 
@@ -299,7 +299,7 @@ class StreamRouter(object):
         service = self.__capacity_aware_routing_algorithm(services, n)
 
         if not service:
-            logger.error("No ASNS services available in the region.", region=region)
+            logger.error("No ASNS services available in the region.", extra={'region': region})
         return service
 
     def construct_rtspcon_route(self, region, resource, ttl=None):
