@@ -4,7 +4,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="streamrouter",
-    version='2.0.1',
+    version='2.1.0',
     description="Angelcam stream router library",
     keywords="asyncio stream router",
     author="Angelcam",
@@ -13,8 +13,10 @@ setup(
     license="MIT",
     packages=find_packages(),
     install_requires=[
+        "aiohttp >= 2.0.0",
+        "async_timeout >= 2.0.0",
         "murmurhash3 >= 2.3.5",
-        "python-consul >= 0.6.1"
+        "python-consul >= 0.7.0"
     ],
     dependency_links=[
         "https://bitbucket.org/angelcam/python-hmac-tokens/get/v1.1.2.tar.gz#egg=hmac_tokens"

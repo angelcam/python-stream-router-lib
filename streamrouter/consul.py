@@ -1,5 +1,7 @@
+import aiohttp
+import async_timeout
 import asyncio
-import consul.aio
+import consul.base
 import json
 import logging
 import re
@@ -20,6 +22,69 @@ def str_or_none(value):
         return value
 
     return str(value)
+
+
+class ConsulHTTPClient(consul.base.HTTPClient):
+    """
+    Replacement for the buggy implementation of the asyncio Consul client.
+    """
+
+    def __init__(self, *args, loop=None, request_timeout=10, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.__event_loop = loop or asyncio.get_event_loop()
+        self.__request_timeout = request_timeout
+
+    async def _request(self, callback, method, uri, data=None):
+        async with aiohttp.ClientSession(loop=self.__event_loop) as client:
+            async with async_timeout.timeout(self.__request_timeout, loop=self.__event_loop):
+                async with client.request(method, uri, data=data) as r:
+                    body = await r.text(encoding='utf-8')
+
+                    if r.status == 599:
+                        raise consul.base.Timeout
+
+                    response = consul.base.Response(r.status, r.headers, body)
+
+                    return callback(response)
+
+    def get(self, callback, path, params=None):
+        uri = self.uri(path, params)
+        return self._request(callback, 'GET', uri)
+
+    def put(self, callback, path, params=None, data=''):
+        uri = self.uri(path, params)
+        return self._request(callback, 'PUT', uri, data=data)
+
+    def delete(self, callback, path, params=None):
+        uri = self.uri(path, params)
+        return self._request(callback, 'DELETE', uri)
+
+    def post(self, callback, path, params=None, data=''):
+        uri = self.uri(path, params)
+        return self._request(callback, 'POST', uri, data=data)
+
+
+class Consul(consul.base.Consul):
+    """
+    Replacement for the buggy implementation of the asyncio Consul client.
+    """
+
+    def __init__(self, *args, loop=None, request_timeout=10, **kwargs):
+        self.__event_loop = loop or asyncio.get_event_loop()
+        self.__request_timeout = request_timeout
+
+        super().__init__(*args, **kwargs)
+
+    def connect(self, host, port, scheme, verify=True, cert=None):
+        return ConsulHTTPClient(
+            host,
+            port,
+            scheme,
+            loop=self.__event_loop,
+            request_timeout=self.__request_timeout,
+            verify=verify,
+            cert=cert)
 
 
 class SynchronizationError(Exception):
@@ -181,7 +246,7 @@ class ConsulClient(object):
 
         for task in tasks:
             try:
-                await asyncio.wait_for(task, 10.0, loop=self.__event_loop)
+                await task
             except asyncio.CancelledError:
                 raise
             except KeyboardInterrupt:
@@ -207,7 +272,7 @@ class ConsulClient(object):
             self.__on_routing_change()
 
     async def __load_services(self, svc_name):
-        c = consul.aio.Consul(
+        c = Consul(
             host=self.__config.consul_host,
             port=self.__config.consul_port,
             loop=self.__event_loop)
