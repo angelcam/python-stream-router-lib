@@ -1,3 +1,5 @@
+import os
+
 class RouterConfig(object):
 
     consul_host = 'consul'
@@ -15,3 +17,5 @@ class RouterConfig(object):
     arrow_asns_api_port = 8910
     arrow_asns_rtsp_proxy_port = 8920
     arrow_asns_http_proxy_port = 8921
+
+    stream_proto = os.environ.get('STREAMROUTER_PROTO', 'https')

@@ -3,6 +3,7 @@ import mmh3
 import re
 import time
 import logging
+import os
 
 from streamrouter import ConsulClient
 
@@ -56,9 +57,10 @@ class Route(object):
     url_mask = None
     possible_streams = {}
 
-    def __init__(self, token, resource):
+    def __init__(self, token, resource, proto='https'):
         self.token = token
         self.resource = resource
+        self.proto = proto
 
     def get_url(self, stream_format):
         if stream_format in self.possible_streams:
@@ -79,6 +81,7 @@ class Route(object):
 
     def _get_kwargs(self, stream_format):
         return {
+            'proto': self.proto,
             'host': self._host(stream_format),
             'camera_id': self.resource.camera_id,
             'token': self.token,
@@ -103,7 +106,7 @@ class Route(object):
 
 
 class RtspconRoute(Route):
-    url_mask = 'https://{host}/stream/{camera_id}/{stream_name}?token={token}'
+    url_mask = '{proto}://{host}/stream/{camera_id}/{stream_name}?token={token}'
 
     possible_streams = {
         Route.STREAM_FORMAT_HLS: 'playlist.m3u8',
@@ -112,8 +115,8 @@ class RtspconRoute(Route):
         Route.LIVE_SNAPSHOT: 'snapshot.jpg'
     }
 
-    def __init__(self, resource, token, master):
-        super().__init__(token, resource)
+    def __init__(self, resource, token, master, proto='https'):
+        super().__init__(token, resource, proto=proto)
         self.master = master
 
     def _service(self, stream_format):
@@ -121,15 +124,15 @@ class RtspconRoute(Route):
 
 
 class EdgeRoute(RtspconRoute):
-    url_mask = 'https://{host}/{master}/{camera_id}/{stream_name}?token={token}'
+    url_mask = '{proto}://{host}/{master}/{camera_id}/{stream_name}?token={token}'
 
     possible_streams = {
         Route.STREAM_FORMAT_HLS: 'playlist.m3u8',
         Route.STREAM_FORMAT_MP4: 'stream.mp4',
     }
 
-    def __init__(self, resource, token, master, rtsp_edge, mp4_edge):
-        super().__init__(resource, token, master)
+    def __init__(self, resource, token, master, rtsp_edge, mp4_edge, proto='https'):
+        super().__init__(resource, token, master, proto=proto)
         self.rtsp_edge = rtsp_edge
         self.mp4_edge = mp4_edge
 
@@ -151,15 +154,15 @@ class EdgeRoute(RtspconRoute):
 
 
 class MjpegProxyRoute(Route):
-    url_mask = 'https://{host}/{stream_name}/{camera_id}?token={token}'
+    url_mask = '{proto}://{host}/{stream_name}/{camera_id}?token={token}'
 
     possible_streams = {
         Route.STREAM_FORMAT_MJPEG: 'stream',
         Route.LIVE_SNAPSHOT: 'snapshot'
     }
 
-    def __init__(self, resource, token, proxy):
-        super().__init__(token, resource)
+    def __init__(self, resource, token, proxy, proto='https'):
+        super().__init__(token, resource, proto=proto)
         self.proxy = proxy
 
     def _service(self, stream_format):
@@ -167,7 +170,7 @@ class MjpegProxyRoute(Route):
 
 
 class StreamRouter(object):
-    def __init__(self, config, loop=None):
+    def __init__(self, config, loop=None, proto='https'):
         self.__config = config
         self.__consul = ConsulClient(config, loop=loop)
 
@@ -306,7 +309,7 @@ class StreamRouter(object):
         master = self.assign_rtspcon_service(region, resource)
 
         token = self.get_rtspcon_token(resource.camera_id, ttl=ttl)
-        return RtspconRoute(resource, token, master)
+        return RtspconRoute(resource, token, master, proto=self.__config.stream_proto)
 
     def construct_edge_route(self, region, resource, ttl=None):
         master = self.assign_rtspcon_service(region, resource)
@@ -316,7 +319,7 @@ class StreamRouter(object):
         rtsp_edge = self.assign_rtsp_edge_service(region, pop)
         mp4_edge = self.assign_mp4_edge_service(region, pop)
         token = self.get_rtspcon_token(resource.camera_id, ttl=ttl)
-        return EdgeRoute(resource, token, master, rtsp_edge, mp4_edge)
+        return EdgeRoute(resource, token, master, rtsp_edge, mp4_edge, proto=self.__config.stream_proto)
 
     def construct_mjpeg_proxy_route(self, region, resource, ttl=None):
         proxy = self.assign_mjpeg_proxy_service(region, resource)
