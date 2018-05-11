@@ -1,5 +1,10 @@
 from .config import RouterConfig
-from .consul import ConsulClient
+from .consul import (
+    Service,
+    HlsEdgeService, Mp4EdgeService,
+    RtspconService, ArrowAsnsService, MjpegProxyService,
+    Consul,
+)
 from .router import (
     Resource,
     Route, RtspconRoute, EdgeRoute, MjpegProxyRoute,
@@ -7,9 +12,12 @@ from .router import (
 )
 
 __all__ = (
-    RouterConfig,
-    ConsulClient,
-    Resource,
-    Route, RtspconRoute, EdgeRoute, MjpegProxyRoute,
-    StreamRouter
+    'RouterConfig',
+    'Service',
+    'HlsEdgeService', 'Mp4EdgeService',
+    'RtspconService', 'ArrowAsnsService', 'MjpegProxyService',
+    'Consul',
+    'Resource',
+    'Route', 'RtspconRoute', 'EdgeRoute', 'MjpegProxyRoute',
+    'StreamRouter'
 )

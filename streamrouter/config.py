@@ -1,5 +1,6 @@
 import os
 
+
 class RouterConfig(object):
 
     consul_host = 'consul'
