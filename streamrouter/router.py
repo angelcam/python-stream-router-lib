@@ -635,7 +635,8 @@ class StreamRouter(NativeObject):
         the router gets updated.
         """
         def callback(err):
-            cb()
+            if err is None:
+                cb()
 
         ncb = lib.UPDATE_CALLBACK(callback)
 
