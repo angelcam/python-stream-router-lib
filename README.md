@@ -18,8 +18,8 @@ and run `pip3 install -r requirements.txt`.
 Here is a simple usage example:
 
 ```Python
-from streamrouter.router import StreamRouter, Resource
-from streamrouter.config import RouterConfig
+from streamrouter import StreamRouter, Resource
+from streamrouter import RouterConfig
 
 ...
 
@@ -81,7 +81,7 @@ route.snapshot_url
 
 See the `StreamRouter`, `Resource` and `XXXRoute` docs for all available
 methods and fields. The `assign_xxx_service()` methods return instances of the
-`Service` class. The `construct_XXX_route()` methods return instances of the
+`XXXService` class. The `construct_XXX_route()` methods return instances of the
 `XXXRoute` classes.
 
 **Important note:** the stream router does not re-map continent codes as the
