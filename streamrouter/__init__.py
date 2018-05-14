@@ -4,11 +4,13 @@ from .consul import (
     HlsEdgeService, Mp4EdgeService,
     RtspconService, ArrowAsnsService, MjpegProxyService,
     Consul,
+    SynchronizationError,
 )
 from .router import (
     Resource,
     Route, RtspconRoute, EdgeRoute, MjpegProxyRoute,
-    StreamRouter
+    StreamRouter,
+    RoutingFailed, UnsupportedStreamFormat,
 )
 
 __all__ = (
@@ -17,7 +19,9 @@ __all__ = (
     'HlsEdgeService', 'Mp4EdgeService',
     'RtspconService', 'ArrowAsnsService', 'MjpegProxyService',
     'Consul',
+    'SynchronizationError',
     'Resource',
     'Route', 'RtspconRoute', 'EdgeRoute', 'MjpegProxyRoute',
-    'StreamRouter'
+    'StreamRouter',
+    'RoutingFailed', 'UnsupportedStreamFormat',
 )

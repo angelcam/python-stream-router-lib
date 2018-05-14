@@ -478,8 +478,7 @@ class Consul(NativeObject):
         the consul service gets updated.
         """
         def callback(err):
-            if err is None:
-                cb()
+            cb()
 
         ncb = lib.UPDATE_CALLBACK(callback)
 

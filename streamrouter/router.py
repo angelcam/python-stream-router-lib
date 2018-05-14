@@ -20,6 +20,9 @@ def native_router_config_factory(config):
     initialized from a given RouterConfig.
     """
     assert type(config) is RouterConfig
+    assert type(config.sync_period) is int
+
+    assert config.sync_period > 0
 
     host = config.consul_host.encode('utf-8')
     port = config.consul_port
@@ -635,8 +638,7 @@ class StreamRouter(NativeObject):
         the router gets updated.
         """
         def callback(err):
-            if err is None:
-                cb()
+            cb()
 
         ncb = lib.UPDATE_CALLBACK(callback)
 
