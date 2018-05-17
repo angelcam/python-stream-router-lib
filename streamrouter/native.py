@@ -30,7 +30,7 @@ class Library:
         """
         pass
 
-    def load_function(self, name, restype=None, argtypes=[]):
+    def load_function(self, name, argtypes=[], restype=None):
         """
         Load a given native function and create a field of the same name.,
         """
@@ -46,14 +46,7 @@ class Library:
         descriptionn is a triplet (name, argtypes, restype).
         """
         for function in functions:
-            restype = None
-
-            if len(function) == 2:
-                name, argtypes = function
-            else:
-                name, argtypes, restype = function
-
-            self.load_function(name, restype=restype, argtypes=argtypes)
+            self.load_function(*function)
 
 
 def get_string(native_function, *args):
@@ -98,10 +91,8 @@ def get_stream_router_lib():
     """
     global __stream_router_lib
 
-    if __stream_router_lib is not None:
-        return __stream_router_lib
-
-    __stream_router_lib = StreamRouterLibrary()
+    if __stream_router_lib is None:
+        __stream_router_lib = StreamRouterLibrary()
 
     return __stream_router_lib
 

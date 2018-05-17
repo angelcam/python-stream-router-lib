@@ -116,7 +116,7 @@ class Resource:
         self.arrow_uuid = arrow_uuid
 
 
-class Route:
+class Route(NativeObject):
     """
     Common base class for various types of routes.
     """
@@ -125,6 +125,29 @@ class Route:
     STREAM_FORMAT_MP4 = "mp4"
     STREAM_FORMAT_MJPEG = "mjpeg"
     LIVE_SNAPSHOT = "jpeg"
+
+    free_func = None
+    to_route_func = None
+
+    def __init__(self, raw_ptr, free_raw_ptr=True, proto='https'):
+        if free_raw_ptr:
+            free_func = self.free_func
+        else:
+            free_func = None
+
+        super().__init__(raw_ptr, free_func=free_func)
+
+        route = self.to_route_func(raw_ptr)
+
+        self.proto = proto
+        self.native_route = NativeRoute(route, proto=proto)
+
+    def __del__(self):
+        # free the casted reference first
+        self.native_route.__del__()
+
+        # and then the original object
+        super().__del__()
 
     def is_supported_format(self, stream_format):
         """
@@ -207,30 +230,13 @@ class NativeRoute(NativeObject):
             scheme)
 
 
-class EdgeRoute(Route, NativeObject):
+class EdgeRoute(Route):
     """
     Edge server route for a h264 camera.
     """
 
-    def __init__(self, raw_ptr, free_raw_ptr=True, proto='https'):
-        if free_raw_ptr:
-            free_func = lib.srl__edge_route__free
-        else:
-            free_func = None
-
-        super().__init__(raw_ptr, free_func=free_func)
-
-        route = lib.srl__edge_route__to_route(raw_ptr)
-
-        self.proto = proto
-        self.native_route = NativeRoute(route, proto=proto)
-
-    def __del__(self):
-        # free the casted reference first
-        self.native_route.__del__()
-
-        # and then the original object
-        super().__del__()
+    free_func = lib.srl__edge_route__free
+    to_route_func = lib.srl__edge_route__to_route
 
     def get_service(self, native_function, service_factory):
         assert self.raw_ptr is not None
@@ -277,30 +283,13 @@ class EdgeRoute(Route, NativeObject):
             scheme)
 
 
-class RtspconRoute(Route, NativeObject):
+class RtspconRoute(Route):
     """
     RTSP Connector route for a h264 camera.
     """
 
-    def __init__(self, raw_ptr, free_raw_ptr=True, proto='https'):
-        if free_raw_ptr:
-            free_func = lib.srl__rtspcon_route__free
-        else:
-            free_func = None
-
-        super().__init__(raw_ptr, free_func=free_func)
-
-        route = lib.srl__rtspcon_route__to_route(raw_ptr)
-
-        self.proto = proto
-        self.native_route = NativeRoute(route, proto=proto)
-
-    def __del__(self):
-        # free the casted reference first
-        self.native_route.__del__()
-
-        # and then the original object
-        super().__del__()
+    free_func = lib.srl__rtspcon_route__free
+    to_route_func = lib.srl__rtspcon_route__to_route
 
     def get_base_url(self):
         """
@@ -332,29 +321,13 @@ class RtspconRoute(Route, NativeObject):
         return service
 
 
-class MjpegProxyRoute(Route, NativeObject):
+class MjpegProxyRoute(Route):
     """
     MJPEG proxy route for MJPEG cameras.
     """
 
-    def __init__(self, raw_ptr, free_raw_ptr=True, proto='https'):
-        if free_raw_ptr:
-            free_func = lib.srl__mjpeg_proxy_route__free
-        else:
-            free_func = None
-
-        super().__init__(raw_ptr, free_func=free_func)
-
-        route = lib.srl__mjpeg_proxy_route__to_route(raw_ptr)
-
-        self.native_route = NativeRoute(route, proto=proto)
-
-    def __del__(self):
-        # free the casted reference first
-        self.native_route.__del__()
-
-        # and then the original object
-        super().__del__()
+    free_func = lib.srl__mjpeg_proxy_route__free
+    to_route_func = lib.srl__mjpeg_proxy_route__to_route
 
     def get_service(self):
         """
@@ -658,10 +631,7 @@ class StreamRouter(NativeObject):
 
         lib.srl__router__remove_update_callback(self.raw_ptr, token)
 
-        try:
-            del self.update_callbacks[token]
-        except KeyError:
-            pass
+        self.update_callbacks.pop(token, None)
 
     def add_routing_changed_callback(self, cb):
         """
@@ -686,10 +656,7 @@ class StreamRouter(NativeObject):
 
         lib.srl__router__remove_change_callback(self.raw_ptr, token)
 
-        try:
-            del self.change_callbacks[token]
-        except KeyError:
-            pass
+        self.change_callbacks.pop(token, None)
 
     def is_healthy(self):
         """

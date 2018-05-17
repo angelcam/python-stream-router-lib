@@ -30,10 +30,32 @@ class SynchronizationError(Exception):
     pass
 
 
-class Service:
+class Service(NativeObject):
     """
     Common base class for various types of services.
     """
+
+    free_func = None
+    to_service_func = None
+
+    def __init__(self, raw_ptr, free_raw_ptr=True):
+        if free_raw_ptr:
+            free_func = self.free_func
+        else:
+            free_func = None
+
+        super().__init__(raw_ptr, free_func=free_func)
+
+        service = self.to_service_func(raw_ptr)
+
+        self.native_service = NativeService(service)
+
+    def __del__(self):
+        # free the casted reference first
+        self.native_service.__del__()
+
+        # and then the original object
+        super().__del__()
 
     @property
     def id(self):
@@ -223,143 +245,63 @@ class ServiceLoadMixin:
         return self.get_relative_load_func(self.raw_ptr)
 
 
-class HlsEdgeService(ServiceLoadMixin, ServiceCapacityMixin, Service, NativeObject):
+class HlsEdgeService(ServiceLoadMixin, ServiceCapacityMixin, Service):
     """
     HLS edge service.
     """
+
+    free_func = lib.srl__hls_edge_service__free
+    to_service_func = lib.srl__hls_edge_service__to_service
 
     get_capacity_func = lib.srl__hls_edge_service__get_capacity
     get_load_func = lib.srl__hls_edge_service__get_load
     get_relative_load_func = lib.srl__hls_edge_service__get_relative_load
 
-    def __init__(self, raw_ptr, free_raw_ptr=True):
-        if free_raw_ptr:
-            free_func = lib.srl__hls_edge_service__free
-        else:
-            free_func = None
 
-        super().__init__(raw_ptr, free_func=free_func)
-
-        service = lib.srl__hls_edge_service__to_service(raw_ptr)
-
-        self.native_service = NativeService(service)
-
-    def __del__(self):
-        # free the casted reference first
-        self.native_service.__del__()
-
-        # and then the original object
-        super().__del__()
-
-
-class Mp4EdgeService(ServiceLoadMixin, ServiceCapacityMixin, Service, NativeObject):
+class Mp4EdgeService(ServiceLoadMixin, ServiceCapacityMixin, Service):
     """
     MP4 edge service.
     """
+
+    free_func = lib.srl__mp4_edge_service__free
+    to_service_func = lib.srl__mp4_edge_service__to_service
 
     get_capacity_func = lib.srl__mp4_edge_service__get_capacity
     get_load_func = lib.srl__mp4_edge_service__get_load
     get_relative_load_func = lib.srl__mp4_edge_service__get_relative_load
 
-    def __init__(self, raw_ptr, free_raw_ptr=True):
-        if free_raw_ptr:
-            free_func = lib.srl__mp4_edge_service__free
-        else:
-            free_func = None
 
-        super().__init__(raw_ptr, free_func=free_func)
-
-        service = lib.srl__mp4_edge_service__to_service(raw_ptr)
-
-        self.native_service = NativeService(service)
-
-    def __del__(self):
-        # free the casted reference first
-        self.native_service.__del__()
-
-        # and then the original object
-        super().__del__()
-
-
-class RtspconService(ServiceCapacityMixin, Service, NativeObject):
+class RtspconService(ServiceCapacityMixin, Service):
     """
     RTSP Connector service.
     """
 
+    free_func = lib.srl__rtspcon_service__free
+    to_service_func = lib.srl__rtspcon_service__to_service
+
     get_capacity_func = lib.srl__rtspcon_service__get_capacity
 
-    def __init__(self, raw_ptr, free_raw_ptr=True):
-        if free_raw_ptr:
-            free_func = lib.srl__rtspcon_service__free
-        else:
-            free_func = None
 
-        super().__init__(raw_ptr, free_func=free_func)
-
-        service = lib.srl__rtspcon_service__to_service(raw_ptr)
-
-        self.native_service = NativeService(service)
-
-    def __del__(self):
-        # free the casted reference first
-        self.native_service.__del__()
-
-        # and then the original object
-        super().__del__()
-
-
-class ArrowAsnsService(ServiceCapacityMixin, Service, NativeObject):
+class ArrowAsnsService(ServiceCapacityMixin, Service):
     """
     Arrow ASNS service.
     """
 
+    free_func = lib.srl__arrow_asns_service__free
+    to_service_func = lib.srl__arrow_asns_service__to_service
+
     get_capacity_func = lib.srl__arrow_asns_service__get_capacity
 
-    def __init__(self, raw_ptr, free_raw_ptr=True):
-        if free_raw_ptr:
-            free_func = lib.srl__arrow_asns_service__free
-        else:
-            free_func = None
 
-        super().__init__(raw_ptr, free_func=free_func)
-
-        service = lib.srl__arrow_asns_service__to_service(raw_ptr)
-
-        self.native_service = NativeService(service)
-
-    def __del__(self):
-        # free the casted reference first
-        self.native_service.__del__()
-
-        # and then the original object
-        super().__del__()
-
-
-class MjpegProxyService(ServiceCapacityMixin, Service, NativeObject):
+class MjpegProxyService(ServiceCapacityMixin, Service):
     """
     MJPEG proxy service.
     """
 
+    free_func = lib.srl__mjpeg_proxy_service__free
+    to_service_func = lib.srl__mjpeg_proxy_service__to_service
+
     get_capacity_func = lib.srl__mjpeg_proxy_service__get_capacity
-
-    def __init__(self, raw_ptr, free_raw_ptr=True):
-        if free_raw_ptr:
-            free_func = lib.srl__mjpeg_proxy_service__free
-        else:
-            free_func = None
-
-        super().__init__(raw_ptr, free_func=free_func)
-
-        service = lib.srl__mjpeg_proxy_service__to_service(raw_ptr)
-
-        self.native_service = NativeService(service)
-
-    def __del__(self):
-        # free the casted reference first
-        self.native_service.__del__()
-
-        # and then the original object
-        super().__del__()
 
 
 class Consul(NativeObject):
@@ -498,10 +440,7 @@ class Consul(NativeObject):
 
         lib.srl__consul__remove_update_callback(self.raw_ptr, token)
 
-        try:
-            del self.update_callbacks[token]
-        except KeyError:
-            pass
+        self.update_callbacks.pop(token, None)
 
     def add_routing_changed_callback(self, cb):
         """
@@ -526,10 +465,7 @@ class Consul(NativeObject):
 
         lib.srl__consul__remove_change_callback(self.raw_ptr, token)
 
-        try:
-            del self.change_callbacks[token]
-        except KeyError:
-            pass
+        self.change_callbacks.pop(token, None)
 
     def is_healthy(self):
         """
