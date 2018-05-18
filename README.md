@@ -8,7 +8,7 @@ the CDN.
 Add the following line into you `requirements.txt`:
 
 ```
-https://bitbucket.org/angelcam/python-stream-router-lib/get/{tag}.tar.gz#egg=streamrouter
+git+https://github.com/angelcam/python-stream-router-lib.git@v2.1.1#egg=streamrouter
 ```
 
 and run `pip3 install -r requirements.txt`.
@@ -18,8 +18,8 @@ and run `pip3 install -r requirements.txt`.
 Here is a simple usage example:
 
 ```Python
-from streamrouter.router import StreamRouter, Resource
-from streamrouter.config import RouterConfig
+from streamrouter import StreamRouter, Resource
+from streamrouter import RouterConfig
 
 ...
 
@@ -81,7 +81,7 @@ route.snapshot_url
 
 See the `StreamRouter`, `Resource` and `XXXRoute` docs for all available
 methods and fields. The `assign_xxx_service()` methods return instances of the
-`Service` class. The `construct_XXX_route()` methods return instances of the
+`XXXService` class. The `construct_XXX_route()` methods return instances of the
 `XXXRoute` classes.
 
 **Important note:** the stream router does not re-map continent codes as the

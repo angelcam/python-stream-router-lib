@@ -1,34 +1,105 @@
-import hmac_tokens
-import mmh3
+import asyncio
 import re
-import time
-import logging
-import os
 
-from streamrouter import ConsulClient
+from contextlib import contextmanager
 
-logger = logging.getLogger(__name__)
+from .config import RouterConfig
+from .consul import (
+    ArrowAsnsService, Consul, HlsEdgeService, MjpegProxyService, Mp4EdgeService,
+    RtspconService, SynchronizationError,
+)
+from .native import NativeObject, get_stream_router_lib, get_string
 
-
-class NotImplementedStream(Exception):
-    def __init__(self, request_format, possible_formats):
-        self.request_stream_format = request_format
-        self.possible_formats = possible_formats
+lib = get_stream_router_lib()
 
 
-class ServiceUnavailable(Exception):
-    def __init__(self, service_name):
-        self.service_name = service_name
+@contextmanager
+def native_router_config_factory(config):
+    """
+    A context manager that yields native router configuration object
+    initialized from a given RouterConfig.
+    """
+    assert type(config) is RouterConfig
+    assert type(config.sync_period) is int
+
+    assert config.sync_period > 0
+
+    host = config.consul_host.encode('utf-8')
+    port = config.consul_port
+
+    cfg = lib.srl__router_cfg__new(host, port)
+    if not cfg:
+        raise Exception("Unable to create a native router configuration object.")
+
+    rtspcon_secret = config.rtspcon_secret.encode('utf-8')
+    mjpeg_proxy_secret = config.mjpeg_proxy_secret.encode('utf-8')
+
+    lib.srl__router_cfg__use_http(cfg)
+    lib.srl__router_cfg__set_rtspcon_secret(cfg, rtspcon_secret)
+    lib.srl__router_cfg__set_mjpeg_proxy_secret(cfg, mjpeg_proxy_secret)
+    lib.srl__router_cfg__set_update_interval(cfg, config.sync_period)
+
+    try:
+        yield cfg
+    finally:
+        lib.srl__router_cfg__free(cfg)
 
 
-class Resource(object):
+@contextmanager
+def native_resource_factory(resource):
+    """
+    A context manager that yields native resource object initialized from a
+    given Resource.
+    """
+    assert type(resource) is Resource
+
+    camera_id = resource.camera_id.encode('utf-8')
+
+    if resource.arrow_uuid is None:
+        arrow_uuid = None
+    else:
+        arrow_uuid = resource.arrow_uuid.encode('utf-8')
+
+    if resource.setup == Resource.COMMON:
+        res = lib.srl__resource__new_common(camera_id)
+    elif resource.setup == Resource.ARROW:
+        res = lib.srl__resource__new_arrow(camera_id, arrow_uuid)
+    elif resource.setup == Resource.AOC:
+        res = lib.srl__resource__new_aoc(camera_id)
+    else:
+        raise ValueError("Unsupported camera setup.")
+
+    if not res:
+        raise Exception("Unable to create a native resource.")
+
+    try:
+        yield res
+    finally:
+        lib.srl__resource__free(res)
+
+
+class UnsupportedStreamFormat(Exception):
+
+    def __init__(self, stream_format):
+        self.stream_format = stream_format
+
+
+class RoutingFailed(Exception):
+    pass
+
+
+class Resource:
+    """
+    Routing resource (i.e. a camera).
+    """
+
     COMMON = 'common'
     ARROW = 'arrow'
     AOC = 'aoc'
 
     # camera in preview stream have id with non-numeric prefix
     re_camera_id = re.compile(r"^\D*(\d+)$")
-    re_arrow_uuid = re.compile(r"^([0-9a-fA-F]{8})[0-9a-fA-F-]*$")
+    re_arrow_uuid = re.compile(r"^([0-9a-fA-F]{8})-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{12}$")
 
     def __init__(self, camera_id, setup=COMMON, arrow_uuid=None):
         camera_id = str(camera_id)
@@ -44,49 +115,51 @@ class Resource(object):
         self.setup = setup
         self.arrow_uuid = arrow_uuid
 
-    def is_arrow_setup(self):
-        return self.setup == self.ARROW
 
+class Route(NativeObject):
+    """
+    Common base class for various types of routes.
+    """
 
-class Route(object):
     STREAM_FORMAT_HLS = "hls"
     STREAM_FORMAT_MP4 = "mp4"
     STREAM_FORMAT_MJPEG = "mjpeg"
-    LIVE_SNAPSHOT = "snapshot"
+    LIVE_SNAPSHOT = "jpeg"
 
-    url_mask = None
-    possible_streams = {}
+    free_func = None
+    to_route_func = None
 
-    def __init__(self, token, resource, proto='https'):
-        self.token = token
-        self.resource = resource
+    def __init__(self, raw_ptr, free_raw_ptr=True, proto='https'):
+        if free_raw_ptr:
+            free_func = self.free_func
+        else:
+            free_func = None
+
+        super().__init__(raw_ptr, free_func=free_func)
+
+        route = self.to_route_func(raw_ptr)
+
         self.proto = proto
+        self.native_route = NativeRoute(route, proto=proto)
+
+    def __del__(self):
+        # free the casted reference first
+        self.native_route.__del__()
+
+        # and then the original object
+        super().__del__()
+
+    def is_supported_format(self, stream_format):
+        """
+        Check if a given stream format is supported by this type of route.
+        """
+        return self.native_route.is_supported_format(stream_format)
 
     def get_url(self, stream_format):
-        if stream_format in self.possible_streams:
-            kwargs = self._get_kwargs(stream_format=stream_format)
-            return self.url_mask.format(**kwargs)
-        else:
-            raise NotImplementedStream(stream_format, self.possible_streams)
-
-    def _host(self, stream_format):
-        service = self._service(stream_format)
-        if service['service'] is not None:
-            return service['service'].host
-        else:
-            raise ServiceUnavailable(service['name'])
-
-    def _service(self, stream_format):
-        raise NotImplementedError
-
-    def _get_kwargs(self, stream_format):
-        return {
-            'proto': self.proto,
-            'host': self._host(stream_format),
-            'camera_id': self.resource.camera_id,
-            'token': self.token,
-            'stream_name': self.possible_streams[stream_format]
-        }
+        """
+        Get stream URL for a given format.
+        """
+        return self.native_route.get_url(stream_format)
 
     @property
     def mjpeg_url(self):
@@ -105,306 +178,508 @@ class Route(object):
         return self.get_url(self.LIVE_SNAPSHOT)
 
 
+class NativeRoute(NativeObject):
+    """
+    A wrapper around a native route object.
+    """
+
+    stream_format_map = {
+        Route.STREAM_FORMAT_HLS: lib.STREAM_FORMAT_HLS,
+        Route.STREAM_FORMAT_MP4: lib.STREAM_FORMAT_MP4,
+        Route.STREAM_FORMAT_MJPEG: lib.STREAM_FORMAT_MJPEG,
+        Route.LIVE_SNAPSHOT: lib.STREAM_FORMAT_LIVE_SNAPSHOT,
+    }
+
+    def __init__(self, raw_ptr, free_raw_ptr=True, proto='https'):
+        if free_raw_ptr:
+            free_func = lib.srl__route__free
+        else:
+            free_func = None
+
+        super().__init__(raw_ptr, free_func=free_func)
+
+        self.proto = proto
+
+    def is_supported_format(self, stream_format):
+        """
+        Check if a given stream format is supported by this type of route.
+        """
+        native_stream_format = self.stream_format_map[stream_format]
+
+        assert self.raw_ptr is not None
+
+        res = lib.srl__route__is_supported_format(self.raw_ptr, native_stream_format)
+
+        return bool(res)
+
+    def get_url(self, stream_format):
+        """
+        Get stream URL for a given format.
+        """
+        if not self.is_supported_format(stream_format):
+            raise UnsupportedStreamFormat(stream_format)
+
+        native_stream_format = self.stream_format_map[stream_format]
+
+        scheme = self.proto.encode('utf-8')
+
+        return get_string(
+            lib.srl__route__get_url_with_custom_scheme,
+            self.raw_ptr,
+            native_stream_format,
+            scheme)
+
+
+class EdgeRoute(Route):
+    """
+    Edge server route for a h264 camera.
+    """
+
+    free_func = lib.srl__edge_route__free
+    to_route_func = lib.srl__edge_route__to_route
+
+    def get_service(self, native_function, service_factory):
+        assert self.raw_ptr is not None
+
+        service = native_function(self.raw_ptr)
+
+        service = service_factory(service, free_raw_ptr=False)
+
+        # NOTE: the route MUST NOT be garbage collected if the service is still
+        # reachable
+        service.route = self
+
+        return service
+
+    def get_rtspcon_service(self):
+        """
+        Get the RTSP Connector service used in this route.
+        """
+        return self.get_service(lib.srl__edge_route__get_rtspcon_service, RtspconService)
+
+    def get_hls_edge_service(self):
+        """
+        Get the HLS edge service used in this route.
+        """
+        return self.get_service(lib.srl__edge_route__get_hls_edge_service, HlsEdgeService)
+
+    def get_mp4_edge_service(self):
+        """
+        Get the MP4 edge service used in this route.
+        """
+        return self.get_service(lib.srl__edge_route__get_mp4_edge_service, Mp4EdgeService)
+
+    def get_hls_base_url(self):
+        """
+        Get base URL for HLS segments.
+        """
+        assert self.raw_ptr is not None
+
+        scheme = self.proto.encode('utf-8')
+
+        return get_string(
+            lib.srl__edge_route__get_hls_base_url_with_custom_scheme,
+            self.raw_ptr,
+            scheme)
+
+
 class RtspconRoute(Route):
-    url_mask = '{proto}://{host}/stream/{camera_id}/{stream_name}?token={token}'
+    """
+    RTSP Connector route for a h264 camera.
+    """
 
-    possible_streams = {
-        Route.STREAM_FORMAT_HLS: 'playlist.m3u8',
-        Route.STREAM_FORMAT_MP4: 'stream.mp4',
-        Route.STREAM_FORMAT_MJPEG: 'stream.mjpeg',
-        Route.LIVE_SNAPSHOT: 'snapshot.jpg'
-    }
+    free_func = lib.srl__rtspcon_route__free
+    to_route_func = lib.srl__rtspcon_route__to_route
 
-    def __init__(self, resource, token, master, proto='https'):
-        super().__init__(token, resource, proto=proto)
-        self.master = master
+    def get_base_url(self):
+        """
+        Get base URL for various types of streams and HLS segments.
+        """
+        assert self.raw_ptr is not None
 
-    def _service(self, stream_format):
-        return {'name': 'rtsp-master', 'service': self.master}
+        scheme = self.proto.encode('utf-8')
 
+        return get_string(
+            lib.srl__rtspcon_route__get_base_url_with_custom_scheme,
+            self.raw_ptr,
+            scheme)
 
-class EdgeRoute(RtspconRoute):
-    url_mask = '{proto}://{host}/{master}/{camera_id}/{stream_name}?token={token}'
+    def get_service(self):
+        """
+        Get the RTSP Connector service used in this route.
+        """
+        assert self.raw_ptr is not None
 
-    possible_streams = {
-        Route.STREAM_FORMAT_HLS: 'playlist.m3u8',
-        Route.STREAM_FORMAT_MP4: 'stream.mp4',
-    }
+        service = lib.srl__rtspcon_route__get_service(self.raw_ptr)
 
-    def __init__(self, resource, token, master, rtsp_edge, mp4_edge, proto='https'):
-        super().__init__(resource, token, master, proto=proto)
-        self.rtsp_edge = rtsp_edge
-        self.mp4_edge = mp4_edge
+        service = RtspconService(service, free_raw_ptr=False)
 
-    def _service(self, stream_format):
-        if self.master is None:
-            raise ServiceUnavailable('rtsp-master')
-        if stream_format == self.STREAM_FORMAT_MP4:
-            return {'name': 'mp4-edge', 'service': self.mp4_edge}
-        return {'name': 'rtsp-edge', 'service': self.rtsp_edge}
+        # NOTE: the route MUST NOT be garbage collected if the service is still
+        # reachable
+        service.route = self
 
-    @property
-    def master_key(self):
-        return self.master.id.replace('rtsp-master-', '')
-
-    def _get_kwargs(self, stream_format, **kwargs):
-        kwargs = super()._get_kwargs(stream_format=stream_format)
-        kwargs['master'] = self.master_key
-        return kwargs
+        return service
 
 
 class MjpegProxyRoute(Route):
-    url_mask = '{proto}://{host}/{stream_name}/{camera_id}?token={token}'
+    """
+    MJPEG proxy route for MJPEG cameras.
+    """
 
-    possible_streams = {
-        Route.STREAM_FORMAT_MJPEG: 'stream',
-        Route.LIVE_SNAPSHOT: 'snapshot'
+    free_func = lib.srl__mjpeg_proxy_route__free
+    to_route_func = lib.srl__mjpeg_proxy_route__to_route
+
+    def get_service(self):
+        """
+        Get the MJPEG proxy service used in this route.
+        """
+        assert self.raw_ptr is not None
+
+        service = lib.srl__mjpeg_proxy_route__get_service(self.raw_ptr)
+
+        service = MjpegProxyService(service, free_raw_ptr=False)
+
+        # NOTE: the route MUST NOT be garbage collected if the service is still
+        # reachable
+        service.route = self
+
+        return service
+
+
+class StreamRouter(NativeObject):
+
+    REGION_EU = 'eu'
+    REGION_NA = 'na'
+
+    region_map = {
+        REGION_EU: lib.REGION_EU,
+        REGION_NA: lib.REGION_NA,
     }
 
-    def __init__(self, resource, token, proxy, proto='https'):
-        super().__init__(token, resource, proto=proto)
-        self.proxy = proxy
+    def __init__(self, config, loop=None):
+        self.config = config
 
-    def _service(self, stream_format):
-        return {'name': 'mjpeg-proxy', 'service': self.proxy}
+        with native_router_config_factory(config) as cfg:
+            router = lib.srl__router__new(cfg)
+            if not router:
+                raise Exception("Unable to create a native stream router object.")
 
+            super().__init__(router, free_func=lib.srl__router__free)
 
-class StreamRouter(object):
-    def __init__(self, config, loop=None, proto='https'):
-        self.__config = config
-        self.__consul = ConsulClient(config, loop=loop)
+        self.event_loop = loop or asyncio.get_event_loop()
+
+        self.update_callbacks = {}
+        self.change_callbacks = {}
+
+        consul = lib.srl__router__get_consul_service_mut(self.raw_ptr)
+
+        self.consul = Consul(consul, loop=loop)
+
+        # NOTE: the router MUST NOT be garbage collected if the consul service
+        # is still reachable
+        self.consul.router = self
+
+    def __del__(self):
+        # free the Consul service reference first
+        self.consul.__del__()
+
+        # and then the Router
+        super().__del__()
 
     async def sync(self):
-        await self.__consul.sync()
+        """
+        Synchronize the router with the remote Consul API.
+        """
+        fut = self.event_loop.create_future()
+
+        def set_result_threadsafe(res):
+            self.event_loop.call_soon_threadsafe(lambda: fut.set_result(res))
+
+        def set_exception_threadsafe(exc):
+            self.event_loop.call_soon_threadsafe(lambda: fut.set_exception(exc))
+
+        def callback(err):
+            if err is None:
+                set_result_threadsafe(None)
+            else:
+                err = err.decode('utf-8')
+                exc = SynchronizationError(err)
+                set_exception_threadsafe(exc)
+
+        ncb = lib.SYNCHRONIZE_CALLBACK(callback)
+
+        assert self.raw_ptr is not None
+
+        lib.srl__router__synchronize_async(self.raw_ptr, ncb)
+
+        await fut
 
     def assign_rtspcon_service(self, region, resource):
+        """
+        Assign RTSP Connector service from a given region for a given resource.
+        """
         assert type(region) is str
         assert type(resource) is Resource
 
-        n = resource.numeric_camera_id
+        region = self.region_map[region]
 
-        if resource.is_arrow_setup():
-            asns = self.assign_arrow_asns_service(region, resource.arrow_uuid)
-            if not asns:
+        assert self.raw_ptr is not None
+
+        with native_resource_factory(resource) as res:
+            svc = lib.srl__router__assign_rtspcon_service(self.raw_ptr, region, res)
+            if not svc:
                 return None
 
-            services = self.__consul.get_rtspcon_services_by_node_id(asns.node)
-            service = self.__capacity_aware_routing_algorithm(services, n)
-            if not service:
-                logger.error("No RTSPCon services available with requested node id.", extra={'node_id': asns.node})
-            return service
+            return RtspconService(svc)
 
-        services = self.__consul.get_rtspcon_services(region)
-        service = self.__capacity_aware_routing_algorithm(services, n)
-
-        if not service:
-            logger.warning("No RTSPCon services available in the region.", extra={'region': region})
-            services = self.__consul.get_rtspcon_services()
-            service = self.__capacity_aware_routing_algorithm(services, n)
-        if not service:
-            logger.error("No RTSPCon services available at all.")
-        return service
-
-    def assign_rtsp_edge_service(self, region, pop=None):
+    def assign_hls_edge_service(self, region, pop=None):
+        """
+        Assign HLS edge service from a given region and POP (if given).
+        """
         assert type(region) is str
         assert pop is None or type(pop) is str
 
-        services = []
+        region = self.region_map[region]
 
-        if pop:
-            services = self.__consul.get_rtsp_edge_services(pop)
+        if pop is not None:
+            pop = pop.encode('utf-8')
 
-        # if the requested POP is too loaded, use also other servers in the
-        # region (in order to avoid edge server congestion)
-        if services:
-            svc = services[0]
-            rload = svc.load / svc.capacity
-            if rload > 0.5:
-                services = []
+        assert self.raw_ptr is not None
 
-        if not services:
-            logger.warning("No RTSP Edge services available with requested POP.", extra={'region': region, 'pop': pop})
-            services = self.__consul.get_rtsp_edge_services(region)
+        svc = lib.srl__router__assign_hls_edge_service(self.raw_ptr, region, pop)
+        if not svc:
+            return None
 
-        if not services:
-            logger.warning("No RTSP Edge services available in the region.", extra={'region': region})
-            services = self.__consul.get_rtsp_edge_services()
-
-        if services:
-            return services[0]
-
-        logger.error("No RTSP Edge services available at all.")
-        return None
+        return HlsEdgeService(svc)
 
     def assign_mp4_edge_service(self, region, pop=None):
+        """
+        Assign MP4 edge service from a given region and POP (if given).
+        """
         assert type(region) is str
         assert pop is None or type(pop) is str
 
-        services = []
+        region = self.region_map[region]
 
-        if pop:
-            services = self.__consul.get_mp4_edge_services(pop)
+        if pop is not None:
+            pop = pop.encode('utf-8')
 
-        # if the requested POP is too loaded, use also other servers in the
-        # region (in order to avoid edge server congestion)
-        if services:
-            svc = services[0]
-            rload = svc.load / svc.capacity
-            if rload > 0.5:
-                services = []
+        assert self.raw_ptr is not None
 
-        if not services:
-            logger.warning("No MP4 Edge services available with requested POP.", extra={'region': region, 'pop': pop})
-            services = self.__consul.get_mp4_edge_services(region)
+        svc = lib.srl__router__assign_mp4_edge_service(self.raw_ptr, region, pop)
+        if not svc:
+            return None
 
-        if not services:
-            logger.warning("No MP4 Edge services available in the region.", extra={'region': region})
-            services = self.__consul.get_mp4_edge_services()
-
-        if services:
-            return services[0]
-
-        logger.error("No MP4 Edge services available at all.")
-        return None
+        return Mp4EdgeService(svc)
 
     def assign_mjpeg_proxy_service(self, region, resource):
+        """
+        Assign MJPEG proxy service from a given region for a given resource.
+        """
         assert type(region) is str
         assert type(resource) is Resource
 
-        if resource.is_arrow_setup():
-            # TODO: for arrow setups, we should try to assign an MJPEG proxy
-            # in the same data center as the corresponding ASNS server at first
-            pass
+        region = self.region_map[region]
 
-        n = resource.numeric_camera_id
+        assert self.raw_ptr is not None
 
-        services = self.__consul.get_mjpeg_proxy_services(region)
-        service = self.__capacity_aware_routing_algorithm(services, n)
+        with native_resource_factory(resource) as res:
+            svc = lib.srl__router__assign_mjpeg_proxy_service(self.raw_ptr, region, res)
+            if not svc:
+                return None
 
-        if not service:
-            logger.warning("No MJPEG proxy services available in the region.", extra={'region': region})
-            services = self.__consul.get_mjpeg_proxy_services()
-            service = self.__capacity_aware_routing_algorithm(services, n)
-
-        if not service:
-            logger.error("No MJPEG proxy services available at all.")
-        return service
+            return MjpegProxyService(svc)
 
     def assign_arrow_asns_service(self, region, arrow_uuid):
+        """
+        Assign Arrow ASNS service from a given region for a given Arrow UUID.
+        """
+        assert type(region) is str
+        assert type(arrow_uuid) is str
+
         m_arrow_uuid = Resource.re_arrow_uuid.match(arrow_uuid)
 
-        assert type(region) is str
         assert m_arrow_uuid
 
-        n = int(m_arrow_uuid.group(1), 16)
+        region = self.region_map[region]
 
-        services = self.__consul.get_arrow_asns_services(region)
-        service = self.__capacity_aware_routing_algorithm(services, n)
+        arrow_uuid = arrow_uuid.encode('utf-8')
 
-        if not service:
-            logger.error("No ASNS services available in the region.", extra={'region': region})
-        return service
+        assert self.raw_ptr is not None
+
+        svc = lib.srl__router__assign_arrow_asns_service(self.raw_ptr, region, arrow_uuid)
+        if not svc:
+            return None
+
+        return ArrowAsnsService(svc)
 
     def construct_rtspcon_route(self, region, resource, ttl=None):
-        master = self.assign_rtspcon_service(region, resource)
+        """
+        Construct RTSP Connector route.
+        """
+        if ttl is None:
+            ttl = self.config.rtspcon_ttl
 
-        token = self.get_rtspcon_token(resource.camera_id, ttl=ttl)
-        return RtspconRoute(resource, token, master, proto=self.__config.stream_proto)
+        return self.construct_route(
+            lib.srl__router__construct_rtspcon_route,
+            RtspconRoute,
+            region,
+            resource,
+            ttl)
 
     def construct_edge_route(self, region, resource, ttl=None):
-        master = self.assign_rtspcon_service(region, resource)
-        pop = None
-        if master is not None:
-            pop = master.pop
-        rtsp_edge = self.assign_rtsp_edge_service(region, pop)
-        mp4_edge = self.assign_mp4_edge_service(region, pop)
-        token = self.get_rtspcon_token(resource.camera_id, ttl=ttl)
-        return EdgeRoute(resource, token, master, rtsp_edge, mp4_edge, proto=self.__config.stream_proto)
+        """
+        Construct edge route.
+        """
+        if ttl is None:
+            ttl = self.config.rtspcon_ttl
+
+        return self.construct_route(
+            lib.srl__router__construct_edge_route,
+            EdgeRoute,
+            region,
+            resource,
+            ttl)
 
     def construct_mjpeg_proxy_route(self, region, resource, ttl=None):
-        proxy = self.assign_mjpeg_proxy_service(region, resource)
-        token = self.get_mjpeg_proxy_token(resource.camera_id, ttl=ttl)
-        return MjpegProxyRoute(resource, token, proxy)
-
-    def get_rtspcon_token(self, camera_id, ttl=None):
+        """
+        Construct MJPEG proxy route.
+        """
         if ttl is None:
-            ttl = self.__config.rtspcon_ttl
+            ttl = self.config.mjpeg_proxy_ttl
 
+        return self.construct_route(
+            lib.srl__router__construct_mjpeg_proxy_route,
+            MjpegProxyRoute,
+            region,
+            resource,
+            ttl)
+
+    def construct_route(self, native_function, route_factory, region, resource, ttl):
+        assert type(region) is str
+        assert type(resource) is Resource
+        assert type(ttl) is int
+
+        region = self.region_map[region]
+
+        assert self.raw_ptr is not None
+
+        with native_resource_factory(resource) as res:
+            route = native_function(self.raw_ptr, region, res, ttl)
+            if not route:
+                raise RoutingFailed("route cannot be constructed")
+
+            return route_factory(route, proto=self.config.stream_proto)
+
+    def get_rtspcon_access_token(self, camera_id, ttl=None):
+        """
+        Get RTSP Connector access token for a given camera ID.
+        """
+        if ttl is None:
+            ttl = self.config.rtspcon_ttl
+
+        return self.get_access_token(
+            lib.srl__router__create_rtspcon_access_token,
+            camera_id,
+            ttl)
+
+    def get_mjpeg_proxy_access_token(self, camera_id, ttl=None):
+        """
+        Get MJPEG proxy access token for a given camera ID.
+        """
+        if ttl is None:
+            ttl = self.config.mjpeg_proxy_ttl
+
+        return self.get_access_token(
+            lib.srl__router__create_mjpeg_proxy_access_token,
+            camera_id,
+            ttl)
+
+    def get_access_token(self, native_function, camera_id, ttl):
         assert type(ttl) is int
 
         camera_id = str(camera_id)
-        timestamp = time.time()
+        camera_id = camera_id.encode('utf-8')
 
-        return hmac_tokens.gen_token(
-            self.__config.rtspcon_secret,
-            token_time=int(timestamp * 1000000),
-            timeout=ttl,
-            alias=camera_id)
+        assert self.raw_ptr is not None
 
-    def get_mjpeg_proxy_token(self, camera_id, ttl=None):
-        if ttl is None:
-            ttl = self.__config.mjpeg_proxy_ttl
-
-        assert type(ttl) is int
-
-        camera_id = str(camera_id)
-
-        return hmac_tokens.gen_token(
-            self.__config.mjpeg_proxy_secret,
-            timeout=ttl,
-            camera_id=camera_id)
+        return get_string(native_function, self.raw_ptr, camera_id, ttl)
 
     def add_update_callback(self, cb):
-        self.__consul.add_update_callback(cb)
+        """
+        Add a given update callback. The callback will be invoked whenever
+        the router gets updated.
+        """
+        def callback(err):
+            cb()
 
-    def remove_update_callback(self, cb):
-        self.__consul.remove_update_callback(cb)
+        ncb = lib.UPDATE_CALLBACK(callback)
+
+        assert self.raw_ptr is not None
+
+        token = lib.srl__router__add_update_callback(self.raw_ptr, ncb)
+
+        self.update_callbacks[token] = ncb
+
+        return token
+
+    def remove_update_callback(self, token):
+        """
+        Remove an update callback corresponding to a given token.
+        """
+        assert self.raw_ptr is not None
+
+        lib.srl__router__remove_update_callback(self.raw_ptr, token)
+
+        self.update_callbacks.pop(token, None)
 
     def add_routing_changed_callback(self, cb):
-        self.__consul.add_routing_changed_callback(cb)
+        """
+        Add a given routing-changed callback. The callback will be invoked
+        whenever the routing information changes.
+        """
+        ncb = lib.CHANGE_CALLBACK(cb)
 
-    def remove_routing_changed_callback(self, cb):
-        self.__consul.remove_routing_changed_callback(cb)
+        assert self.raw_ptr is not None
+
+        token = lib.srl__router__add_change_callback(self.raw_ptr, ncb)
+
+        self.change_callbacks[token] = ncb
+
+        return token
+
+    def remove_routing_changed_callback(self, token):
+        """
+        Remove a routing-changed callback corresponding to a given token.
+        """
+        assert self.raw_ptr is not None
+
+        lib.srl__router__remove_change_callback(self.raw_ptr, token)
+
+        self.change_callbacks.pop(token, None)
 
     def is_healthy(self):
-        return self.__consul.is_healthy()
+        """
+        Check if the router is healthy.
+        """
+        assert self.raw_ptr is not None
+
+        return lib.srl__router__get_status(self.raw_ptr) == lib.STATUS_OK
 
     def exception(self):
-        return self.__consul.exception()
+        """
+        Get the last synchronization exception.
+        """
+        assert self.raw_ptr is not None
+
+        err = get_string(lib.srl__router__get_error, self.raw_ptr)
+        if err is None:
+            return None
+
+        return SynchronizationError(err)
 
     def close(self):
-        self.__consul.close()
-
-    def __capacity_aware_routing_algorithm(self, services, n):
-        # get total service capacity
-        tc = sum(map(lambda svc: svc.capacity, services))
-
-        n = self.__get_hash(n) & 0x00ffffff
-
-        while services:
-            sf = (1 << 24) / tc  # capacity scaling factor
-            cc = 0  # cumulative capacity
-            i = 0
-
-            # get interval index
-            while (i + 1) < len(services):
-                svc = services[i]
-                cc += svc.capacity
-                if n < (cc * sf):
-                    break
-
-                i += 1
-
-            svc = services.pop(i)
-
-            if svc.healthy:
-                return svc
-
-            n = self.__get_hash(n) & 0x00ffffff
-
-            tc -= svc.capacity
-
-        return None
-
-    def __get_hash(self, n):
-        return mmh3.hash('%08x' % n) & 0xffffffff
+        """
+        Close the router. Stop all background jobs and release all resources.
+        """
+        self.__del__()

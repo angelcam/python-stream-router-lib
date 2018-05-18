@@ -1,485 +1,488 @@
-import aiohttp
-import async_timeout
 import asyncio
-import consul.base
-import json
-import logging
-import re
-import sys
 
-logger = logging.getLogger(__name__)
+from .native import NativeObject, get_stream_router_lib, get_string
+
+lib = get_stream_router_lib()
 
 
-def int_or_none(value):
-    try:
-        return int(value)
-    except Exception:
-        return None
+class cached_property:
+    """
+    Custom decorator for cached properties.
+    """
 
+    def __init__(self, func):
+        self.func = func
 
-def str_or_none(value):
-    if value is None:
+    def __get__(self, obj, cls):
+        if obj is None:
+            raise AttributeError("not a class attribute")
+
+        value = self.func(obj)
+
+        # this replaces the cached property decorator in the owner __dict__
+        # with the computed value
+        obj.__dict__[self.func.__name__] = value
+
         return value
-
-    return str(value)
-
-
-class ConsulHTTPClient(consul.base.HTTPClient):
-    """
-    Replacement for the buggy implementation of the asyncio Consul client.
-    """
-
-    def __init__(self, *args, loop=None, request_timeout=10, **kwargs):
-        super().__init__(*args, **kwargs)
-
-        self.__event_loop = loop or asyncio.get_event_loop()
-        self.__request_timeout = request_timeout
-
-    async def _request(self, callback, method, uri, data=None):
-        async with aiohttp.ClientSession(loop=self.__event_loop) as client:
-            async with async_timeout.timeout(self.__request_timeout, loop=self.__event_loop):
-                async with client.request(method, uri, data=data) as r:
-                    body = await r.text(encoding='utf-8')
-
-                    if r.status == 599:
-                        raise consul.base.Timeout
-
-                    response = consul.base.Response(r.status, r.headers, body)
-
-                    return callback(response)
-
-    def get(self, callback, path, params=None):
-        uri = self.uri(path, params)
-        return self._request(callback, 'GET', uri)
-
-    def put(self, callback, path, params=None, data=''):
-        uri = self.uri(path, params)
-        return self._request(callback, 'PUT', uri, data=data)
-
-    def delete(self, callback, path, params=None):
-        uri = self.uri(path, params)
-        return self._request(callback, 'DELETE', uri)
-
-    def post(self, callback, path, params=None, data=''):
-        uri = self.uri(path, params)
-        return self._request(callback, 'POST', uri, data=data)
-
-
-class Consul(consul.base.Consul):
-    """
-    Replacement for the buggy implementation of the asyncio Consul client.
-    """
-
-    def __init__(self, *args, loop=None, request_timeout=10, **kwargs):
-        self.__event_loop = loop or asyncio.get_event_loop()
-        self.__request_timeout = request_timeout
-
-        super().__init__(*args, **kwargs)
-
-    def connect(self, host, port, scheme, verify=True, cert=None):
-        return ConsulHTTPClient(
-            host,
-            port,
-            scheme,
-            loop=self.__event_loop,
-            request_timeout=self.__request_timeout,
-            verify=verify,
-            cert=cert)
 
 
 class SynchronizationError(Exception):
-    def __init__(self, inner):
-        super().__init__()
-        self.inner = inner
+    pass
+
+
+class Service(NativeObject):
+    """
+    Common base class for various types of services.
+    """
+
+    free_func = None
+    to_service_func = None
+
+    def __init__(self, raw_ptr, free_raw_ptr=True):
+        if free_raw_ptr:
+            free_func = self.free_func
+        else:
+            free_func = None
+
+        super().__init__(raw_ptr, free_func=free_func)
+
+        service = self.to_service_func(raw_ptr)
+
+        self.native_service = NativeService(service)
+
+    def __del__(self):
+        # free the casted reference first
+        self.native_service.__del__()
+
+        # and then the original object
+        super().__del__()
+
+    @property
+    def id(self):
+        return self.native_service.id
+
+    @property
+    def node_id(self):
+        return self.native_service.node_id
+
+    @property
+    def host(self):
+        return self.native_service.host
+
+    @property
+    def region(self):
+        return self.native_service.region
+
+    @property
+    def pop(self):
+        return self.native_service.pop
+
+    @property
+    def tags(self):
+        return self.native_service.tags
+
+    def has_tag(self, tag):
+        return self.native_service.has_tag(tag)
+
+    @property
+    def healthy(self):
+        return self.native_service.healthy
+
+    @property
+    def disabled(self):
+        return self.native_service.disabled
+
+    @property
+    def params(self):
+        return self.native_service.params
+
+    def get_param(self, name):
+        return self.native_service.get_param(name)
 
     def __str__(self):
-        if isinstance(self.inner, list):
-            cause = ', '.join(map(lambda elem: str(elem), self.inner))
+        return self.id
+
+
+class NativeService(NativeObject):
+    """
+    A wrapper around a native service object.
+    """
+
+    def __init__(self, raw_ptr, free_raw_ptr=True):
+        if free_raw_ptr:
+            free_func = lib.srl__service__free
         else:
-            cause = str(self.inner)
+            free_func = None
 
-        return "Consul synchronization error, cause: %s" % cause
+        super().__init__(raw_ptr, free_func=free_func)
+
+    @cached_property
+    def id(self):
+        assert self.raw_ptr is not None
+
+        return get_string(lib.srl__service__get_id, self.raw_ptr)
+
+    @cached_property
+    def node_id(self):
+        assert self.raw_ptr is not None
+
+        return get_string(lib.srl__service__get_node_id, self.raw_ptr)
+
+    @cached_property
+    def host(self):
+        assert self.raw_ptr is not None
+
+        return get_string(lib.srl__service__get_host, self.raw_ptr)
+
+    @cached_property
+    def region(self):
+        assert self.raw_ptr is not None
+
+        region = lib.srl__service__get_region(self.raw_ptr)
+        if region == lib.REGION_EU:
+            return 'eu'
+        elif region == lib.REGION_NA:
+            return 'na'
+        else:
+            return None
+
+    @cached_property
+    def pop(self):
+        assert self.raw_ptr is not None
+
+        return get_string(lib.srl__service__get_pop, self.raw_ptr)
+
+    @cached_property
+    def tags(self):
+        assert self.raw_ptr is not None
+
+        tags = set()
+
+        iterator = lib.srl__service__get_tags(self.raw_ptr)
+
+        try:
+            while True:
+                tag = get_string(lib.srl__service_tags__current, iterator)
+                if tag is None:
+                    break
+
+                tags.add(tag)
+
+                lib.srl__service_tags__next(iterator)
+        finally:
+            lib.srl__service_tags__free(iterator)
+
+        return tags
+
+    def has_tag(self, tag):
+        return tag in self.tags
+
+    @cached_property
+    def healthy(self):
+        assert self.raw_ptr is not None
+
+        return bool(lib.srl__service__is_healthy(self.raw_ptr))
+
+    @cached_property
+    def disabled(self):
+        assert self.raw_ptr is not None
+
+        return bool(lib.srl__service__is_disabled(self.raw_ptr))
+
+    @cached_property
+    def params(self):
+        assert self.raw_ptr is not None
+
+        params = {}
+
+        iterator = lib.srl__service__get_params(self.raw_ptr)
+
+        try:
+            while True:
+                key = get_string(lib.srl__service_params__current_key, iterator)
+                val = get_string(lib.srl__service_params__current_value, iterator)
+                if key is None:
+                    break
+
+                params[key] = val
+
+                lib.srl__service_params__next(iterator)
+        finally:
+            lib.srl__service_params__free(iterator)
+
+        return params
+
+    def get_param(self, name):
+        return self.params.get(name)
 
 
-class Service(object):
-    def __init__(self, consul_svc, kv_items):
-        self.node = consul_svc['Node']['Node']
+class ServiceCapacityMixin:
 
-        self.id = consul_svc['Service']['ID']
+    get_capacity_func = None
 
-        self.host = consul_svc['Service']['Address']
-        self.tags = consul_svc['Service']['Tags']
+    @cached_property
+    def capacity(self):
+        assert self.raw_ptr is not None
 
-        self.pop = self.__get_pop(self.tags)
-
-        self.healthy = all(map(
-            lambda check: check['Status'].lower() == 'passing',
-            consul_svc['Checks']))
-
-        self.kv = kv_items.get(self.id, {})
-
-        self.load = int_or_none(self.kv.get('bandwidth'))
-        self.capacity = int_or_none(self.kv.get('maxBandwidth'))
-
-        if 'disabled' in self.kv and self.kv['disabled'] != '0':
-            self.healthy = False
-
-        self.services = {}
-
-    def __eq__(self, other):
-        return type(self) == type(other) \
-               and self.id == other.id \
-               and self.node == other.node \
-               and self.pop == other.pop \
-               and self.healthy == other.healthy \
-               and self.capacity == other.capacity
-
-    def __ne__(self, other):
-        return not self.__eq__(other)
-
-    def __get_pop(self, tags):
-        for tag in tags:
-            if tag.startswith('pop_'):
-                return tag
-
-        return None
+        return self.get_capacity_func(self.raw_ptr)
 
 
-class ServiceMap(object):
-    def __init__(self, services):
-        self.__tag_map = {}
-        self.__node_map = {}
+class ServiceLoadMixin:
 
-        self.__all = services
+    get_load_func = None
+    get_relative_load_func = None
 
-        for svc in services:
-            # add this service to all corresponding tags
-            for tag in svc.tags:
-                if tag not in self.__tag_map:
-                    self.__tag_map[tag] = []
-                self.__tag_map[tag].append(svc)
+    @cached_property
+    def load(self):
+        assert self.raw_ptr is not None
 
-            node = svc.node
+        return self.get_load_func(self.raw_ptr)
 
-            # add this service to the corresponding node
-            if node not in self.__node_map:
-                self.__node_map[node] = []
-            self.__node_map[node].append(svc)
+    @cached_property
+    def relative_load(self):
+        assert self.raw_ptr is not None
 
-    def __eq__(self, other):
-        return type(self) == type(other) \
-               and self.__all == other.__all
-
-    def __ne__(self, other):
-        return not self.__eq__(other)
-
-    def __by_key(self, svc_map, key):
-        if key in svc_map:
-            return svc_map[key]
-
-        return []
-
-    def by_tag(self, tag):
-        return self.__by_key(self.__tag_map, tag)
-
-    def by_node_id(self, node_id):
-        return self.__by_key(self.__node_map, node_id)
-
-    def all(self):
-        return self.__all
+        return self.get_relative_load_func(self.raw_ptr)
 
 
-class ConsulClient(object):
-    def __init__(self, config, loop=None):
-        self.__config = config
+class HlsEdgeService(ServiceLoadMixin, ServiceCapacityMixin, Service):
+    """
+    HLS edge service.
+    """
 
-        self.__re_kv_key = re.compile(r"^service/([^\s/]+)/([^\s/]+)/(\S+)$")
+    free_func = lib.srl__hls_edge_service__free
+    to_service_func = lib.srl__hls_edge_service__to_service
 
-        self.__update_callbacks = set()
-        self.__routing_changed_callbacks = set()
+    get_capacity_func = lib.srl__hls_edge_service__get_capacity
+    get_load_func = lib.srl__hls_edge_service__get_load
+    get_relative_load_func = lib.srl__hls_edge_service__get_relative_load
 
-        self.__last_error = None
-        self.__closed = False
 
-        if loop is None:
-            loop = asyncio.get_event_loop()
+class Mp4EdgeService(ServiceLoadMixin, ServiceCapacityMixin, Service):
+    """
+    MP4 edge service.
+    """
 
-        self.__event_loop = loop
+    free_func = lib.srl__mp4_edge_service__free
+    to_service_func = lib.srl__mp4_edge_service__to_service
 
-        self.__rtspcon_services = ServiceMap([])
-        self.__rtsp_edge_services = ServiceMap([])
-        self.__mp4_edge_services = ServiceMap([])
-        self.__mjpeg_proxy_services = ServiceMap([])
-        self.__arrow_asns_services = ServiceMap([])
+    get_capacity_func = lib.srl__mp4_edge_service__get_capacity
+    get_load_func = lib.srl__mp4_edge_service__get_load
+    get_relative_load_func = lib.srl__mp4_edge_service__get_relative_load
 
-        self.__sync_task = loop.create_task(self.__sync_loop())
+
+class RtspconService(ServiceCapacityMixin, Service):
+    """
+    RTSP Connector service.
+    """
+
+    free_func = lib.srl__rtspcon_service__free
+    to_service_func = lib.srl__rtspcon_service__to_service
+
+    get_capacity_func = lib.srl__rtspcon_service__get_capacity
+
+
+class ArrowAsnsService(ServiceCapacityMixin, Service):
+    """
+    Arrow ASNS service.
+    """
+
+    free_func = lib.srl__arrow_asns_service__free
+    to_service_func = lib.srl__arrow_asns_service__to_service
+
+    get_capacity_func = lib.srl__arrow_asns_service__get_capacity
+
+
+class MjpegProxyService(ServiceCapacityMixin, Service):
+    """
+    MJPEG proxy service.
+    """
+
+    free_func = lib.srl__mjpeg_proxy_service__free
+    to_service_func = lib.srl__mjpeg_proxy_service__to_service
+
+    get_capacity_func = lib.srl__mjpeg_proxy_service__get_capacity
+
+
+class Consul(NativeObject):
+    """
+    Local image of a remote Consul based service DB.
+    """
+
+    def __init__(self, raw_ptr, loop=None):
+        super().__init__(raw_ptr, free_func=None)
+
+        self.event_loop = loop or asyncio.get_event_loop()
+
+        self.update_callbacks = {}
+        self.change_callbacks = {}
 
     async def sync(self):
-        await self.__sync()
+        """
+        Synchronize with the remote Consul API.
+        """
+        fut = self.event_loop.create_future()
 
-    async def __sync_loop(self):
+        def set_result_threadsafe(res):
+            self.event_loop.call_soon_threadsafe(lambda: fut.set_result(res))
+
+        def set_exception_threadsafe(exc):
+            self.event_loop.call_soon_threadsafe(lambda: fut.set_exception(exc))
+
+        def callback(err):
+            if err is None:
+                set_result_threadsafe(None)
+            else:
+                err = err.decode('utf-8')
+                exc = Exception(err)
+                set_exception_threadsafe(exc)
+
+        ncb = lib.SYNCHRONIZE_CALLBACK(callback)
+
+        assert self.raw_ptr is not None
+
+        lib.srl__consul__synchronize_async(self.raw_ptr, ncb)
+
+        await fut
+
+    def get_services(self, iterator_func, itertor_next_func, iterator_free_func, service_factory):
+        assert self.raw_ptr is not None
+
+        services = []
+
+        iterator = iterator_func(self.raw_ptr)
+
         try:
-            while not self.__closed:
-                await self.__sync()
-                await asyncio.sleep(
-                    self.__config.sync_period,
-                    loop=self.__event_loop)
-        except asyncio.CancelledError:
-            pass
+            while True:
+                service = itertor_next_func(iterator)
+                if service is None:
+                    break
 
-    async def __sync(self):
-        old_rtspcon_services = self.__rtspcon_services
-        old_rtsp_edge_services = self.__rtsp_edge_services
-        old_mp4_edge_services = self.__mp4_edge_services
-        old_mjpeg_proxy_services = self.__mjpeg_proxy_services
-        old_arrow_asns_services = self.__arrow_asns_services
+                services.append(service_factory(service))
+        finally:
+            iterator_free_func(iterator)
 
-        tasks = [
-            self.__load_rtspcon_services(),
-            self.__load_rtsp_edge_services(),
-            self.__load_mp4_edge_services(),
-            self.__load_mjpeg_proxy_services(),
-            self.__load_arrow_asns_services(),
-        ]
+        return services
 
-        errors = []
+    def get_rtspcon_services(self):
+        """
+        Get a list of all RTSP Connector services.
+        """
+        return self.get_services(
+            lib.srl__consul__get_all_rtspcon_services,
+            lib.srl__rtspcon_services__next,
+            lib.srl__rtspcon_services__free,
+            RtspconService)
 
-        for task in tasks:
-            try:
-                await task
-            except asyncio.CancelledError:
-                raise
-            except KeyboardInterrupt:
-                raise
-            except Exception as ex:
-                logger.warning(
-                    "Consul synchronization error",
-                    exc_info=sys.exc_info())
-                errors.append(ex)
+    def get_hls_edge_services(self):
+        """
+        Get a list of all HLS edge services.
+        """
+        return self.get_services(
+            lib.srl__consul__get_all_hls_edge_services,
+            lib.srl__hls_edge_services__next,
+            lib.srl__hls_edge_services__free,
+            HlsEdgeService)
 
-        if errors:
-            self.__last_error = SynchronizationError(errors)
-        else:
-            self.__last_error = None
+    def get_mp4_edge_services(self):
+        """
+        Get a list of all MP4 edge services.
+        """
+        return self.get_services(
+            lib.srl__consul__get_all_mp4_edge_services,
+            lib.srl__mp4_edge_services__next,
+            lib.srl__mp4_edge_services__free,
+            Mp4EdgeService)
 
-        self.__on_update()
+    def get_mjpeg_proxy_services(self):
+        """
+        Get a list of all MJPEG proxy services.
+        """
+        return self.get_services(
+            lib.srl__consul__get_all_mjpeg_proxy_services,
+            lib.srl__mjpeg_proxy_services__next,
+            lib.srl__mjpeg_proxy_services__free,
+            MjpegProxyService)
 
-        if old_rtspcon_services != self.__rtspcon_services \
-                or old_rtsp_edge_services != self.__rtsp_edge_services \
-                or old_mp4_edge_services != self.__mp4_edge_services \
-                or old_mjpeg_proxy_services != self.__mjpeg_proxy_services \
-                or old_arrow_asns_services != self.__arrow_asns_services:
-            self.__on_routing_change()
-
-    async def __load_services(self, svc_name):
-        c = Consul(
-            host=self.__config.consul_host,
-            port=self.__config.consul_port,
-            loop=self.__event_loop)
-
-        key = 'service/%s' % svc_name
-
-        index, services = await c.health.service(svc_name)
-        index, kv_items = await c.kv.get(key, recurse=True)
-
-        if services is None:
-            services = []
-
-        if kv_items is None:
-            kv_items = []
-
-        kv_items = self.__parse_kv_items(kv_items)
-
-        return list(map(
-            lambda svc: Service(svc, kv_items),
-            services))
-
-    async def __load_rtspcon_services(self):
-        services = await self.__load_services('rtsp-master')
-
-        services = filter(lambda svc: svc.pop is not None, services)
-        services = filter(lambda svc: svc.capacity is not None, services)
-        services = filter(lambda svc: svc.capacity > 0, services)
-
-        services = sorted(services, key=lambda svc: svc.id)
-
-        self.__rtspcon_services = ServiceMap(services)
-
-    async def __load_rtsp_edge_services(self):
-        services = await self.__load_services('rtsp-edge')
-
-        services = filter(lambda svc: svc.healthy, services)
-        services = filter(lambda svc: svc.pop is not None, services)
-        services = filter(lambda svc: svc.load is not None, services)
-        services = filter(lambda svc: svc.capacity is not None, services)
-        services = filter(lambda svc: svc.capacity > 0, services)
-        services = filter(lambda svc: svc.load < svc.capacity, services)
-
-        services = sorted(services, key=lambda svc: svc.load / svc.capacity)
-
-        self.__rtsp_edge_services = ServiceMap(services)
-
-    async def __load_mp4_edge_services(self):
-        services = await self.__load_services('mp4-edge')
-
-        services = filter(lambda svc: svc.healthy, services)
-        services = filter(lambda svc: svc.pop is not None, services)
-        services = filter(lambda svc: svc.load is not None, services)
-        services = filter(lambda svc: svc.capacity is not None, services)
-        services = filter(lambda svc: svc.capacity > 0, services)
-        services = filter(lambda svc: svc.load < svc.capacity, services)
-
-        services = sorted(services, key=lambda svc: svc.load / svc.capacity)
-
-        self.__mp4_edge_services = ServiceMap(services)
-
-    async def __load_mjpeg_proxy_services(self):
-        services = await self.__load_services('mjpeg-proxy')
-
-        services = filter(lambda svc: svc.pop is not None, services)
-        services = filter(lambda svc: svc.capacity is not None, services)
-        services = filter(lambda svc: svc.capacity > 0, services)
-
-        services = sorted(services, key=lambda svc: svc.id)
-
-        self.__mjpeg_proxy_services = ServiceMap(services)
-
-    async def __load_arrow_asns_services(self):
-        services = await self.__load_services('arrow-asns')
-
-        asns_port = self.__config.arrow_asns_port
-        asns_api_port = self.__config.arrow_asns_api_port
-        rtsp_proxy_port = self.__config.arrow_asns_rtsp_proxy_port
-        http_proxy_port = self.__config.arrow_asns_http_proxy_port
-
-        for svc in services:
-            rtspcons = self.__rtspcon_services.by_node_id(svc.node)
-            nhealthy = any(map(lambda rcon: rcon.healthy, rtspcons))
-
-            svc.healthy = svc.healthy and nhealthy
-
-            svc.services = {
-                "asns": "%s:%d" % (svc.host, asns_port),
-                "asns_api": "%s:%d" % (svc.host, asns_api_port),
-                "rtsp_proxy": "%s:%d" % (svc.host, rtsp_proxy_port),
-                "http_proxy": "%s:%d" % (svc.host, http_proxy_port),
-            }
-
-        services = filter(lambda svc: svc.pop is not None, services)
-        services = filter(lambda svc: svc.capacity is not None, services)
-        services = filter(lambda svc: svc.capacity > 0, services)
-
-        services = sorted(services, key=lambda svc: svc.id)
-
-        self.__arrow_asns_services = ServiceMap(services)
-
-    def __parse_kv_items(self, items):
-        res = {}
-
-        for item in items:
-            m_key = self.__re_kv_key.match(item['Key'])
-
-            # ignore keys that do not match the pattern
-            if not m_key:
-                continue
-
-            svc = m_key.group(2)
-            key = m_key.group(3)
-
-            if svc not in res:
-                res[svc] = {}
-
-            try:
-                res[svc][key] = self.__parse_kv_item(item)
-            except Exception:
-                # ignore invalid keys
-                pass
-
-        return res
-
-    def __parse_kv_item(self, item):
-        flags = item['Flags']
-        value = item['Value']
-
-        value = value.decode('utf-8')
-
-        if flags == 0x01:
-            return int(value)
-        elif flags == 0x02:
-            return float(value)
-        elif flags == 0x03:
-            return json.loads(value)
-
-        return value
-
-    def __get_services(self, services, tag):
-        if tag is None:
-            return list(services.all())
-
-        return list(services.by_tag(tag))
-
-    def __on_update(self):
-        for callback in self.__update_callbacks:
-            try:
-                callback()
-            except Exception:
-                # ignore errors in user callbacks
-                pass
-
-    def __on_routing_change(self):
-        for callback in self.__routing_changed_callbacks:
-            try:
-                callback()
-            except Exception:
-                # ignore errors in user callbacks
-                pass
-
-    def get_rtspcon_services(self, tag=None):
-        return self.__get_services(self.__rtspcon_services, tag)
-
-    def get_rtspcon_services_by_node_id(self, node_id):
-        return list(self.__rtspcon_services.by_node_id(node_id))
-
-    def get_rtsp_edge_services(self, tag=None):
-        return self.__get_services(self.__rtsp_edge_services, tag)
-
-    def get_mp4_edge_services(self, tag=None):
-        return self.__get_services(self.__mp4_edge_services, tag)
-
-    def get_mjpeg_proxy_services(self, tag=None):
-        return self.__get_services(self.__mjpeg_proxy_services, tag)
-
-    def get_arrow_asns_services(self, tag=None):
-        return self.__get_services(self.__arrow_asns_services, tag)
+    def get_arrow_asns_services(self):
+        """
+        Get a list of all Arrow ASNS services.
+        """
+        return self.get_services(
+            lib.srl__consul__get_all_arrow_asns_services,
+            lib.srl__arrow_asns_services__next,
+            lib.srl__arrow_asns_services__free,
+            ArrowAsnsService)
 
     def add_update_callback(self, cb):
-        self.__update_callbacks.add(cb)
+        """
+        Add a given update callback. The callback will be invoked whenever
+        the consul service gets updated.
+        """
+        def callback(err):
+            cb()
 
-    def remove_update_callback(self, cb):
-        self.__update_callbacks.remove(cb)
+        ncb = lib.UPDATE_CALLBACK(callback)
+
+        assert self.raw_ptr is not None
+
+        token = lib.srl__consul__add_update_callback(self.raw_ptr, ncb)
+
+        self.update_callbacks[token] = ncb
+
+        return token
+
+    def remove_update_callback(self, token):
+        """
+        Remove an update callback corresponding to a given token.
+        """
+        assert self.raw_ptr is not None
+
+        lib.srl__consul__remove_update_callback(self.raw_ptr, token)
+
+        self.update_callbacks.pop(token, None)
 
     def add_routing_changed_callback(self, cb):
-        self.__routing_changed_callbacks.add(cb)
+        """
+        Add a given routing-changed callback. The callback will be invoked
+        whenever the routing information changes.
+        """
+        ncb = lib.CHANGE_CALLBACK(cb)
 
-    def remove_routing_changed_callback(self, cb):
-        self.__routing_changed_callbacks.remove(cb)
+        assert self.raw_ptr is not None
+
+        token = lib.srl__consul__add_change_callback(self.raw_ptr, ncb)
+
+        self.change_callbacks[token] = ncb
+
+        return token
+
+    def remove_routing_changed_callback(self, token):
+        """
+        Remove a routing-changed callback corresponding to a given token.
+        """
+        assert self.raw_ptr is not None
+
+        lib.srl__consul__remove_change_callback(self.raw_ptr, token)
+
+        self.change_callbacks.pop(token, None)
 
     def is_healthy(self):
-        return self.__last_error is None
+        """
+        Check if the consul service is healthy.
+        """
+        assert self.raw_ptr is not None
+
+        return lib.srl__consul__get_status(self.raw_ptr) == lib.STATUS_OK
 
     def exception(self):
-        return self.__last_error
+        """
+        Get the last synchronization exception.
+        """
+        assert self.raw_ptr is not None
 
-    def close(self):
-        if self.__closed:
-            return
+        err = get_string(lib.srl__consul__get_error, self.raw_ptr)
+        if err is None:
+            return None
 
-        self.__closed = True
-
-        self.__sync_task.cancel()
-
-        try:
-            self.__event_loop.run_until_complete(
-                self.__sync_task)
-        except asyncio.CancelledError:
-            pass
+        return SynchronizationError(err)
