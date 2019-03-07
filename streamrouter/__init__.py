@@ -1,14 +1,13 @@
 from .config import RouterConfig
 from .consul import (
     Service,
-    HlsEdgeService, Mp4EdgeService,
-    RtspconService, ArrowAsnsService, MjpegProxyService,
+    ArrowAsnsService, StreamingMasterService, StreamingEdgeService,
     Consul,
     SynchronizationError,
 )
 from .router import (
     Resource,
-    Route, RtspconRoute, EdgeRoute, MjpegProxyRoute,
+    Route, EdgeRoute, MasterRoute,
     StreamRouter,
     RoutingFailed, UnsupportedStreamFormat,
 )
@@ -16,12 +15,11 @@ from .router import (
 __all__ = (
     'RouterConfig',
     'Service',
-    'HlsEdgeService', 'Mp4EdgeService',
-    'RtspconService', 'ArrowAsnsService', 'MjpegProxyService',
+    'ArrowAsnsService', 'StreamingMasterService', 'StreamingEdgeService',
     'Consul',
     'SynchronizationError',
     'Resource',
-    'Route', 'RtspconRoute', 'EdgeRoute', 'MjpegProxyRoute',
+    'Route', 'MasterRoute', 'EdgeRoute',
     'StreamRouter',
     'RoutingFailed', 'UnsupportedStreamFormat',
 )

@@ -245,41 +245,28 @@ class ServiceLoadMixin:
         return self.get_relative_load_func(self.raw_ptr)
 
 
-class HlsEdgeService(ServiceLoadMixin, ServiceCapacityMixin, Service):
+class StreamingEdgeService(ServiceLoadMixin, ServiceCapacityMixin, Service):
     """
-    HLS edge service.
-    """
-
-    free_func = lib.srl__hls_edge_service__free
-    to_service_func = lib.srl__hls_edge_service__to_service
-
-    get_capacity_func = lib.srl__hls_edge_service__get_capacity
-    get_load_func = lib.srl__hls_edge_service__get_load
-    get_relative_load_func = lib.srl__hls_edge_service__get_relative_load
-
-
-class Mp4EdgeService(ServiceLoadMixin, ServiceCapacityMixin, Service):
-    """
-    MP4 edge service.
+    Streaming edge service.
     """
 
-    free_func = lib.srl__mp4_edge_service__free
-    to_service_func = lib.srl__mp4_edge_service__to_service
+    free_func = lib.srl__streaming_edge_service__free
+    to_service_func = lib.srl__streaming_edge_service__to_service
 
-    get_capacity_func = lib.srl__mp4_edge_service__get_capacity
-    get_load_func = lib.srl__mp4_edge_service__get_load
-    get_relative_load_func = lib.srl__mp4_edge_service__get_relative_load
+    get_capacity_func = lib.srl__streaming_edge_service__get_capacity
+    get_load_func = lib.srl__streaming_edge_service__get_load
+    get_relative_load_func = lib.srl__streaming_edge_service__get_relative_load
 
 
-class RtspconService(ServiceCapacityMixin, Service):
+class StreamingMasterService(ServiceCapacityMixin, Service):
     """
-    RTSP Connector service.
+    Streaming master service.
     """
 
-    free_func = lib.srl__rtspcon_service__free
-    to_service_func = lib.srl__rtspcon_service__to_service
+    free_func = lib.srl__streaming_master_service__free
+    to_service_func = lib.srl__streaming_master_service__to_service
 
-    get_capacity_func = lib.srl__rtspcon_service__get_capacity
+    get_capacity_func = lib.srl__streaming_master_service__get_capacity
 
 
 class ArrowAsnsService(ServiceCapacityMixin, Service):
@@ -291,17 +278,6 @@ class ArrowAsnsService(ServiceCapacityMixin, Service):
     to_service_func = lib.srl__arrow_asns_service__to_service
 
     get_capacity_func = lib.srl__arrow_asns_service__get_capacity
-
-
-class MjpegProxyService(ServiceCapacityMixin, Service):
-    """
-    MJPEG proxy service.
-    """
-
-    free_func = lib.srl__mjpeg_proxy_service__free
-    to_service_func = lib.srl__mjpeg_proxy_service__to_service
-
-    get_capacity_func = lib.srl__mjpeg_proxy_service__get_capacity
 
 
 class Consul(NativeObject):
@@ -364,45 +340,25 @@ class Consul(NativeObject):
 
         return services
 
-    def get_rtspcon_services(self):
+    def get_streaming_master_services(self):
         """
-        Get a list of all RTSP Connector services.
+        Get a list of all streaming master services.
         """
         return self.get_services(
-            lib.srl__consul__get_all_rtspcon_services,
-            lib.srl__rtspcon_services__next,
-            lib.srl__rtspcon_services__free,
-            RtspconService)
+            lib.srl__consul__get_all_streaming_master_services,
+            lib.srl__streaming_master_services__next,
+            lib.srl__streaming_master_services__free,
+            StreamingMasterService)
 
-    def get_hls_edge_services(self):
+    def get_streaming_edge_services(self):
         """
-        Get a list of all HLS edge services.
-        """
-        return self.get_services(
-            lib.srl__consul__get_all_hls_edge_services,
-            lib.srl__hls_edge_services__next,
-            lib.srl__hls_edge_services__free,
-            HlsEdgeService)
-
-    def get_mp4_edge_services(self):
-        """
-        Get a list of all MP4 edge services.
+        Get a list of all streaming edge services.
         """
         return self.get_services(
-            lib.srl__consul__get_all_mp4_edge_services,
-            lib.srl__mp4_edge_services__next,
-            lib.srl__mp4_edge_services__free,
-            Mp4EdgeService)
-
-    def get_mjpeg_proxy_services(self):
-        """
-        Get a list of all MJPEG proxy services.
-        """
-        return self.get_services(
-            lib.srl__consul__get_all_mjpeg_proxy_services,
-            lib.srl__mjpeg_proxy_services__next,
-            lib.srl__mjpeg_proxy_services__free,
-            MjpegProxyService)
+            lib.srl__consul__get_all_streaming_edge_services,
+            lib.srl__streaming_edge_services__next,
+            lib.srl__streaming_edge_services__free,
+            StreamingEdgeService)
 
     def get_arrow_asns_services(self):
         """

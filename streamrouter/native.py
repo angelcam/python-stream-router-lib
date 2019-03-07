@@ -178,8 +178,7 @@ class StreamRouterLibrary(Library):
             # srl__router_cfg__XXX functions:
             ('srl__router_cfg__new', [c_char_p, c_uint16], c_void_p),
             ('srl__router_cfg__use_http', [c_void_p]),
-            ('srl__router_cfg__set_rtspcon_secret', [c_void_p, c_char_p]),
-            ('srl__router_cfg__set_mjpeg_proxy_secret', [c_void_p, c_char_p]),
+            ('srl__router_cfg__set_secret', [c_void_p, c_char_p]),
             ('srl__router_cfg__set_update_interval', [c_void_p, c_uint32]),
             ('srl__router_cfg__free', [c_void_p]),
 
@@ -193,17 +192,13 @@ class StreamRouterLibrary(Library):
             ('srl__router__remove_update_callback', [c_void_p, c_size_t]),
             ('srl__router__add_change_callback', [c_void_p, self.CHANGE_CALLBACK], c_size_t),
             ('srl__router__remove_change_callback', [c_void_p, c_size_t]),
-            ('srl__router__assign_rtspcon_service', [c_void_p, c_int, c_void_p], c_void_p),
+            ('srl__router__assign_streaming_master_service', [c_void_p, c_int, c_void_p], c_void_p),
+            ('srl__router__assign_streaming_edge_service', [c_void_p, c_int, c_char_p], c_void_p),
             ('srl__router__assign_arrow_asns_service', [c_void_p, c_int, c_char_p], c_void_p),
-            ('srl__router__assign_mjpeg_proxy_service', [c_void_p, c_int, c_void_p], c_void_p),
-            ('srl__router__assign_hls_edge_service', [c_void_p, c_int, c_char_p], c_void_p),
-            ('srl__router__assign_mp4_edge_service', [c_void_p, c_int, c_char_p], c_void_p),
-            ('srl__router__construct_edge_route', [c_void_p, c_int, c_void_p, c_uint32], c_void_p),
-            ('srl__router__construct_rtspcon_route', [c_void_p, c_int, c_void_p, c_uint32], c_void_p),
-            ('srl__router__construct_mjpeg_proxy_route', [c_void_p, c_int, c_void_p, c_uint32], c_void_p),
-            ('srl__router__create_rtspcon_access_token', [c_void_p, c_char_p, c_uint32, c_char_p, c_size_t], c_size_t),
-            ('srl__router__create_mjpeg_proxy_access_token',
-                [c_void_p, c_char_p, c_uint32, c_char_p, c_size_t], c_size_t),
+            ('srl__router__construct_edge_route', [c_void_p, c_int, c_void_p], c_void_p),
+            ('srl__router__construct_master_route', [c_void_p, c_int, c_void_p], c_void_p),
+            ('srl__router__create_stream_access_token',
+                [c_void_p, c_char_p, c_int, c_uint32, c_char_p, c_size_t], c_size_t),
             ('srl__router__free', [c_void_p]),
 
             # srl__consul__XXX functions:
@@ -214,11 +209,9 @@ class StreamRouterLibrary(Library):
             ('srl__consul__remove_update_callback', [c_void_p, c_size_t]),
             ('srl__consul__add_change_callback', [c_void_p, self.CHANGE_CALLBACK], c_size_t),
             ('srl__consul__remove_change_callback', [c_void_p, c_size_t]),
-            ('srl__consul__get_all_hls_edge_services', [c_void_p], c_void_p),
-            ('srl__consul__get_all_mp4_edge_services', [c_void_p], c_void_p),
-            ('srl__consul__get_all_rtspcon_services', [c_void_p], c_void_p),
+            ('srl__consul__get_all_streaming_edge_services', [c_void_p], c_void_p),
+            ('srl__consul__get_all_streaming_master_services', [c_void_p], c_void_p),
             ('srl__consul__get_all_arrow_asns_services', [c_void_p], c_void_p),
-            ('srl__consul__get_all_mjpeg_proxy_services', [c_void_p], c_void_p),
 
             # srl__resource__XXX functions:
             ('srl__resource__new_common', [c_char_p], c_void_p),
@@ -228,58 +221,42 @@ class StreamRouterLibrary(Library):
 
             # srl__edge_route__XXX functions:
             ('srl__edge_route__to_route', [c_void_p], c_void_p),
-            ('srl__edge_route__get_rtspcon_service', [c_void_p], c_void_p),
-            ('srl__edge_route__get_hls_edge_service', [c_void_p], c_void_p),
-            ('srl__edge_route__get_mp4_edge_service', [c_void_p], c_void_p),
+            ('srl__edge_route__get_streaming_master_service', [c_void_p], c_void_p),
+            ('srl__edge_route__get_streaming_edge_service', [c_void_p], c_void_p),
             ('srl__edge_route__get_hls_base_url_with_custom_scheme',
                 [c_void_p, c_char_p, c_char_p, c_size_t], c_size_t),
             ('srl__edge_route__free', [c_void_p]),
 
-            # srl__rtspcon_route__XXX functions:
-            ('srl__rtspcon_route__to_route', [c_void_p], c_void_p),
-            ('srl__rtspcon_route__get_service', [c_void_p], c_void_p),
-            ('srl__rtspcon_route__get_base_url_with_custom_scheme',
+            # srl__master_route__XXX functions:
+            ('srl__master_route__to_route', [c_void_p], c_void_p),
+            ('srl__master_route__get_service', [c_void_p], c_void_p),
+            ('srl__master_route__get_base_url_with_custom_scheme',
                 [c_void_p, c_char_p, c_char_p, c_size_t], c_size_t),
-            ('srl__rtspcon_route__free', [c_void_p]),
-
-            # srl__mjpeg_proxy_route__XXX functions:
-            ('srl__mjpeg_proxy_route__to_route', [c_void_p], c_void_p),
-            ('srl__mjpeg_proxy_route__get_service', [c_void_p], c_void_p),
-            ('srl__mjpeg_proxy_route__free', [c_void_p]),
+            ('srl__master_route__get_hls_base_url_with_custom_scheme',
+                [c_void_p, c_char_p, c_char_p, c_size_t], c_size_t),
+            ('srl__master_route__free', [c_void_p]),
 
             # srl__route__XXX functions:
             ('srl__route__is_supported_format', [c_void_p, c_int], c_int),
-            ('srl__route__get_url_with_custom_scheme', [c_void_p, c_int, c_char_p, c_char_p, c_size_t], c_size_t),
+            ('srl__route__get_url_with_custom_scheme', [c_void_p, c_char_p, c_int, c_uint32, c_char_p, c_size_t], c_size_t),
             ('srl__route__free', [c_void_p]),
 
-            # srl__hls_edge_service__XXX functions:
-            ('srl__hls_edge_service__get_capacity', [c_void_p], c_uint32),
-            ('srl__hls_edge_service__get_load', [c_void_p], c_uint32),
-            ('srl__hls_edge_service__get_relative_load', [c_void_p], c_double),
-            ('srl__hls_edge_service__to_service', [c_void_p], c_void_p),
-            ('srl__hls_edge_service__free', [c_void_p]),
+            # srl__streaming_edge_service__XXX functions:
+            ('srl__streaming_edge_service__get_capacity', [c_void_p], c_uint32),
+            ('srl__streaming_edge_service__get_load', [c_void_p], c_uint32),
+            ('srl__streaming_edge_service__get_relative_load', [c_void_p], c_double),
+            ('srl__streaming_edge_service__to_service', [c_void_p], c_void_p),
+            ('srl__streaming_edge_service__free', [c_void_p]),
 
-            # srl__mp4_edge_service__XXX functions:
-            ('srl__mp4_edge_service__get_capacity', [c_void_p], c_uint32),
-            ('srl__mp4_edge_service__get_load', [c_void_p], c_uint32),
-            ('srl__mp4_edge_service__get_relative_load', [c_void_p], c_double),
-            ('srl__mp4_edge_service__to_service', [c_void_p], c_void_p),
-            ('srl__mp4_edge_service__free', [c_void_p]),
-
-            # srl__rtspcon_service__XXX functions:
-            ('srl__rtspcon_service__get_capacity', [c_void_p], c_uint32),
-            ('srl__rtspcon_service__to_service', [c_void_p], c_void_p),
-            ('srl__rtspcon_service__free', [c_void_p]),
+            # srl__streaming_master_service__XXX functions:
+            ('srl__streaming_master_service__get_capacity', [c_void_p], c_uint32),
+            ('srl__streaming_master_service__to_service', [c_void_p], c_void_p),
+            ('srl__streaming_master_service__free', [c_void_p]),
 
             # srl__arrow_asns_service__XXX functions:
             ('srl__arrow_asns_service__get_capacity', [c_void_p], c_uint32),
             ('srl__arrow_asns_service__to_service', [c_void_p], c_void_p),
             ('srl__arrow_asns_service__free', [c_void_p]),
-
-            # srl__mjpeg_proxy_service__XXX functions:
-            ('srl__mjpeg_proxy_service__get_capacity', [c_void_p], c_uint32),
-            ('srl__mjpeg_proxy_service__to_service', [c_void_p], c_void_p),
-            ('srl__mjpeg_proxy_service__free', [c_void_p]),
 
             # srl__service___XXX functions:
             ('srl__service__get_id', [c_void_p, c_char_p, c_size_t], c_size_t),
@@ -304,25 +281,17 @@ class StreamRouterLibrary(Library):
             ('srl__service_params__next', [c_void_p]),
             ('srl__service_params__free', [c_void_p]),
 
-            # srl__hls_edge_services__XXX functions:
-            ('srl__hls_edge_services__next', [c_void_p], c_void_p),
-            ('srl__hls_edge_services__free', [c_void_p]),
+            # srl__streaming_edge_services__XXX functions:
+            ('srl__streaming_edge_services__next', [c_void_p], c_void_p),
+            ('srl__streaming_edge_services__free', [c_void_p]),
 
-            # srl__mp4_edge_services__XXX functions:
-            ('srl__mp4_edge_services__next', [c_void_p], c_void_p),
-            ('srl__mp4_edge_services__free', [c_void_p]),
-
-            # srl__rtspcon_services__XXX functions:
-            ('srl__rtspcon_services__next', [c_void_p], c_void_p),
-            ('srl__rtspcon_services__free', [c_void_p]),
+            # srl__streaming_master_services__XXX functions:
+            ('srl__streaming_master_services__next', [c_void_p], c_void_p),
+            ('srl__streaming_master_services__free', [c_void_p]),
 
             # srl__arrow_asns_services__XXX functions:
             ('srl__arrow_asns_services__next', [c_void_p], c_void_p),
             ('srl__arrow_asns_services__free', [c_void_p]),
-
-            # srl__mjpeg_proxy_services__XXX functions:
-            ('srl__mjpeg_proxy_services__next', [c_void_p], c_void_p),
-            ('srl__mjpeg_proxy_services__free', [c_void_p]),
         ))
 
 
