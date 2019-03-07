@@ -8,11 +8,7 @@ class RouterConfig(object):
 
     sync_period = 10
 
-    rtspcon_secret = None
-    rtspcon_ttl = 3600
-
-    mjpeg_proxy_secret = None
-    mjpeg_proxy_ttl = 120
+    secret = None
 
     arrow_asns_port = 8901
     arrow_asns_api_port = 8910
