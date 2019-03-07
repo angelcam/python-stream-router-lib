@@ -238,7 +238,8 @@ class StreamRouterLibrary(Library):
 
             # srl__route__XXX functions:
             ('srl__route__is_supported_format', [c_void_p, c_int], c_int),
-            ('srl__route__get_url_with_custom_scheme', [c_void_p, c_char_p, c_int, c_uint32, c_char_p, c_size_t], c_size_t),
+            ('srl__route__get_url_with_custom_scheme',
+                [c_void_p, c_char_p, c_int, c_uint32, c_char_p, c_size_t], c_size_t),
             ('srl__route__free', [c_void_p]),
 
             # srl__streaming_edge_service__XXX functions:

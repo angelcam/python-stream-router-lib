@@ -507,7 +507,12 @@ class StreamRouter(NativeObject):
 
         assert self.raw_ptr is not None
 
-        return get_string(lib.srl__router__create_stream_access_token, self.raw_ptr, camera_id, native_stream_format, ttl)
+        return get_string(
+            lib.srl__router__create_stream_access_token,
+            self.raw_ptr,
+            camera_id,
+            native_stream_format,
+            ttl)
 
     def add_update_callback(self, cb):
         """
