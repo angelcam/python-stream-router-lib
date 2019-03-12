@@ -306,12 +306,21 @@ class NativeObject:
         self.__raw_ptr = raw_ptr
         self.__free_func = free_func
 
+        if free_func is None:
+            self.__free_lock = None
+        else:
+            self.__free_lock = threading.Lock()
+
     def __del__(self):
-        if self.__free_func is not None:
+        if self.__free_func is None:
+            return
+        if self.__raw_ptr is None:
+            return
+
+        with self.__free_lock:
             if self.__raw_ptr is not None:
                 self.__free_func(self.__raw_ptr)
-
-        self.__raw_ptr = None
+            self.__raw_ptr = None
 
     @property
     def raw_ptr(self):
