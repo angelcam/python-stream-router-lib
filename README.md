@@ -18,7 +18,7 @@ and run `pip3 install -r requirements.txt`.
 Here is a simple usage example:
 
 ```Python
-from streamrouter import StreamRouter, Resource
+from streamrouter import StreamRouter, Camera
 from streamrouter import RouterConfig
 
 ...
@@ -44,12 +44,12 @@ def updated():
 router.add_update_callback(updated)
 
 # get rtspcon service for a given camera
-master = router.assign_rtspcon_service('eu', Resource(5))
+master = router.assign_rtspcon_service('eu', Camera(5))
 
 # get rtspcon service for a given Arrow camera
-master = router.assign_rtspcon_service('eu', Resource(
+master = router.assign_rtspcon_service('eu', Camera(
     '10',
-    setup=Resource.ARROW,
+    setup=Camera.ARROW,
     arrow_uuid='1234567890abcdef'
 ))
 
@@ -59,18 +59,18 @@ asns = router.assign_arrow_asns_service('eu', '1234567890abcdef')
 ...
 
 # get HLS edge URL for a given camera
-route = router.construct_edge_route('eu', Resource(
+route = router.construct_edge_route('eu', Camera(
     'preview-10',
-    setup=Resource.ARROW,
+    setup=Camera.ARROW,
     arrow_uuid='1234567890abcdef'),
 )
 url = route.hls_url
 
 # get rtsp_con URL for a given camera
 
-route = router.construct_rtspcon_route('eu', Resource(
+route = router.construct_rtspcon_route('eu', Camera(
     '10',
-    setup=Resource.ARROW,
+    setup=Camera.ARROW,
     arrow_uuid='1234567890abcdef')
 )
 route.hls_url
@@ -79,7 +79,7 @@ route.mjpeg_url
 route.snapshot_url
 ```
 
-See the `StreamRouter`, `Resource` and `XXXRoute` docs for all available
+See the `StreamRouter`, `Camera` and `XXXRoute` docs for all available
 methods and fields. The `assign_xxx_service()` methods return instances of the
 `XXXService` class. The `construct_XXX_route()` methods return instances of the
 `XXXRoute` classes.

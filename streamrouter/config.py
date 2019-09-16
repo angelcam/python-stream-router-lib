@@ -8,7 +8,8 @@ class RouterConfig(object):
 
     sync_period = 10
 
-    secret = None
+    streaming_server_secret = None
+    recording_streamer_secret = None
 
     arrow_asns_port = 8901
     arrow_asns_api_port = 8910

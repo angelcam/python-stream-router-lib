@@ -3,7 +3,7 @@ import ctypes.util
 import logging
 import threading
 
-from ctypes import c_char_p, c_double, c_int, c_uint16, c_uint32, c_void_p, c_size_t, CDLL, CFUNCTYPE
+from ctypes import c_char_p, c_double, c_int, c_uint16, c_uint32, c_uint64, c_void_p, c_size_t, CDLL, CFUNCTYPE
 
 logger = logging.getLogger(__name__)
 thread_local = threading.local()
@@ -116,8 +116,11 @@ class StreamRouterLibrary(Library):
     STATUS_CLOSED = 2
     STATUS_UNHEALTHY = -1
 
-    REGION_NA = 0
-    REGION_EU = 1
+    CDN_REGION_NA = 0
+    CDN_REGION_EU = 1
+
+    AWS_REGION_EU_CENTRAL_1 = 'eu-central-1'
+    AWS_REGION_US_WEST_2 = 'us-west-2'
 
     STREAM_FORMAT_HLS = 0
     STREAM_FORMAT_MP4 = 1
@@ -178,7 +181,8 @@ class StreamRouterLibrary(Library):
             # srl__router_cfg__XXX functions:
             ('srl__router_cfg__new', [c_char_p, c_uint16], c_void_p),
             ('srl__router_cfg__use_http', [c_void_p]),
-            ('srl__router_cfg__set_secret', [c_void_p, c_char_p]),
+            ('srl__router_cfg__set_streaming_server_secret', [c_void_p, c_char_p]),
+            ('srl__router_cfg__set_recording_streamer_secret', [c_void_p, c_char_p]),
             ('srl__router_cfg__set_update_interval', [c_void_p, c_uint32]),
             ('srl__router_cfg__free', [c_void_p]),
 
@@ -195,10 +199,14 @@ class StreamRouterLibrary(Library):
             ('srl__router__assign_streaming_master_service', [c_void_p, c_int, c_void_p], c_void_p),
             ('srl__router__assign_streaming_edge_service', [c_void_p, c_int, c_char_p], c_void_p),
             ('srl__router__assign_arrow_asns_service', [c_void_p, c_int, c_char_p], c_void_p),
+            ('srl__router__assign_recording_streamer_service', [c_void_p, c_char_p], c_void_p),
             ('srl__router__construct_edge_route', [c_void_p, c_int, c_void_p], c_void_p),
             ('srl__router__construct_master_route', [c_void_p, c_int, c_void_p], c_void_p),
-            ('srl__router__create_stream_access_token',
+            ('srl__router__construct_recording_clip_route', [c_void_p, c_char_p, c_char_p], c_void_p),
+            ('srl__router__create_streaming_server_access_token',
                 [c_void_p, c_char_p, c_int, c_uint32, c_char_p, c_size_t], c_size_t),
+            ('srl__router__create_recording_streamer_access_token',
+                [c_void_p, c_uint32, c_char_p, c_size_t], c_size_t),
             ('srl__router__free', [c_void_p]),
 
             # srl__consul__XXX functions:
@@ -212,15 +220,16 @@ class StreamRouterLibrary(Library):
             ('srl__consul__get_all_streaming_edge_services', [c_void_p], c_void_p),
             ('srl__consul__get_all_streaming_master_services', [c_void_p], c_void_p),
             ('srl__consul__get_all_arrow_asns_services', [c_void_p], c_void_p),
+            ('srl__consul__get_all_recording_streamer_services', [c_void_p], c_void_p),
 
-            # srl__resource__XXX functions:
-            ('srl__resource__new_common', [c_char_p], c_void_p),
-            ('srl__resource__new_arrow', [c_char_p, c_char_p], c_void_p),
-            ('srl__resource__new_aoc', [c_char_p], c_void_p),
-            ('srl__resource__free', [c_void_p]),
+            # srl__camera__XXX functions:
+            ('srl__camera__new_common', [c_char_p], c_void_p),
+            ('srl__camera__new_arrow', [c_char_p, c_char_p], c_void_p),
+            ('srl__camera__new_aoc', [c_char_p], c_void_p),
+            ('srl__camera__free', [c_void_p]),
 
             # srl__edge_route__XXX functions:
-            ('srl__edge_route__to_route', [c_void_p], c_void_p),
+            ('srl__edge_route__to_live_stream_route', [c_void_p], c_void_p),
             ('srl__edge_route__get_streaming_master_service', [c_void_p], c_void_p),
             ('srl__edge_route__get_streaming_edge_service', [c_void_p], c_void_p),
             ('srl__edge_route__get_hls_base_url_with_custom_scheme',
@@ -228,7 +237,7 @@ class StreamRouterLibrary(Library):
             ('srl__edge_route__free', [c_void_p]),
 
             # srl__master_route__XXX functions:
-            ('srl__master_route__to_route', [c_void_p], c_void_p),
+            ('srl__master_route__to_live_stream_route', [c_void_p], c_void_p),
             ('srl__master_route__get_service', [c_void_p], c_void_p),
             ('srl__master_route__get_base_url_with_custom_scheme',
                 [c_void_p, c_char_p, c_char_p, c_size_t], c_size_t),
@@ -236,13 +245,25 @@ class StreamRouterLibrary(Library):
                 [c_void_p, c_char_p, c_char_p, c_size_t], c_size_t),
             ('srl__master_route__free', [c_void_p]),
 
-            # srl__route__XXX functions:
-            ('srl__route__is_supported_format', [c_void_p, c_int], c_int),
-            ('srl__route__get_url_with_custom_scheme',
+            # srl__live_stream_route__XXX functions:
+            ('srl__live_stream_route__is_supported_format', [c_void_p, c_int], c_int),
+            ('srl__live_stream_route__get_url_with_custom_scheme',
                 [c_void_p, c_char_p, c_int, c_uint32, c_char_p, c_size_t], c_size_t),
-            ('srl__route__free', [c_void_p]),
+            ('srl__live_stream_route__free', [c_void_p]),
+
+            # srl__recording_clip_route__XXX functions:
+            ('srl__recording_clip_route__get_service', [c_void_p], c_void_p),
+            ('srl__recording_clip_route__get_base_url_with_custom_scheme',
+                [c_void_p, c_char_p, c_char_p, c_size_t], c_size_t),
+            ('srl__recording_clip_route__get_download_url_with_custom_scheme',
+                [c_void_p, c_char_p, c_uint64, c_uint64, c_uint32, c_char_p, c_size_t], c_size_t),
+            ('srl__recording_clip_route__get_snapshot_url_with_custom_scheme',
+                [c_void_p, c_char_p, c_uint64, c_uint32, c_char_p, c_size_t], c_size_t),
+            ('srl__recording_clip_route__free', [c_void_p]),
 
             # srl__streaming_edge_service__XXX functions:
+            ('srl__streaming_edge_service__get_cdn_region', [c_void_p], c_int),
+            ('srl__streaming_edge_service__get_pop', [c_void_p, c_char_p, c_size_t], c_size_t),
             ('srl__streaming_edge_service__get_capacity', [c_void_p], c_uint32),
             ('srl__streaming_edge_service__get_load', [c_void_p], c_uint32),
             ('srl__streaming_edge_service__get_relative_load', [c_void_p], c_double),
@@ -250,21 +271,28 @@ class StreamRouterLibrary(Library):
             ('srl__streaming_edge_service__free', [c_void_p]),
 
             # srl__streaming_master_service__XXX functions:
+            ('srl__streaming_master_service__get_cdn_region', [c_void_p], c_int),
+            ('srl__streaming_master_service__get_pop', [c_void_p, c_char_p, c_size_t], c_size_t),
             ('srl__streaming_master_service__get_capacity', [c_void_p], c_uint32),
             ('srl__streaming_master_service__to_service', [c_void_p], c_void_p),
             ('srl__streaming_master_service__free', [c_void_p]),
 
             # srl__arrow_asns_service__XXX functions:
+            ('srl__arrow_asns_service__get_cdn_region', [c_void_p], c_int),
+            ('srl__arrow_asns_service__get_pop', [c_void_p, c_char_p, c_size_t], c_size_t),
             ('srl__arrow_asns_service__get_capacity', [c_void_p], c_uint32),
             ('srl__arrow_asns_service__to_service', [c_void_p], c_void_p),
             ('srl__arrow_asns_service__free', [c_void_p]),
+
+            # srl__recording_streamer_service__XXX functions:
+            ('srl__recording_streamer_service__get_aws_region', [c_void_p, c_char_p, c_size_t], c_size_t),
+            ('srl__recording_streamer_service__to_service', [c_void_p], c_void_p),
+            ('srl__recording_streamer_service__free', [c_void_p]),
 
             # srl__service___XXX functions:
             ('srl__service__get_id', [c_void_p, c_char_p, c_size_t], c_size_t),
             ('srl__service__get_node_id', [c_void_p, c_char_p, c_size_t], c_size_t),
             ('srl__service__get_host', [c_void_p, c_char_p, c_size_t], c_size_t),
-            ('srl__service__get_region', [c_void_p], c_int),
-            ('srl__service__get_pop', [c_void_p, c_char_p, c_size_t], c_size_t),
             ('srl__service__get_tags', [c_void_p], c_void_p),
             ('srl__service__is_healthy', [c_void_p], c_int),
             ('srl__service__is_disabled', [c_void_p], c_int),
@@ -293,6 +321,10 @@ class StreamRouterLibrary(Library):
             # srl__arrow_asns_services__XXX functions:
             ('srl__arrow_asns_services__next', [c_void_p], c_void_p),
             ('srl__arrow_asns_services__free', [c_void_p]),
+
+            # srl__recording_streamer_services__XXX functions:
+            ('srl__recording_streamer_services__next', [c_void_p], c_void_p),
+            ('srl__recording_streamer_services__free', [c_void_p]),
         ))
 
 
