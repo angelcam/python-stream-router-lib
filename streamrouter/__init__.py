@@ -1,13 +1,13 @@
 from .config import RouterConfig
 from .consul import (
     Service,
-    ArrowAsnsService, StreamingMasterService, StreamingEdgeService,
+    ArrowAsnsService, RecordingStreamerService, StreamingMasterService, StreamingEdgeService,
     Consul,
     SynchronizationError,
 )
 from .router import (
-    Resource,
-    Route, EdgeRoute, MasterRoute,
+    Camera,
+    LiveStreamRoute, EdgeRoute, MasterRoute, RecordingClipRoute,
     StreamRouter,
     RoutingFailed, UnsupportedStreamFormat,
 )
@@ -15,11 +15,11 @@ from .router import (
 __all__ = (
     'RouterConfig',
     'Service',
-    'ArrowAsnsService', 'StreamingMasterService', 'StreamingEdgeService',
+    'ArrowAsnsService', 'RecordingStreamerService', 'StreamingMasterService', 'StreamingEdgeService',
     'Consul',
     'SynchronizationError',
-    'Resource',
-    'Route', 'MasterRoute', 'EdgeRoute',
+    'Camera',
+    'LiveStreamRoute', 'MasterRoute', 'EdgeRoute', 'RecordingClipRoute',
     'StreamRouter',
     'RoutingFailed', 'UnsupportedStreamFormat',
 )

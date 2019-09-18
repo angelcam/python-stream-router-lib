@@ -70,14 +70,6 @@ class Service(NativeObject):
         return self.native_service.host
 
     @property
-    def region(self):
-        return self.native_service.region
-
-    @property
-    def pop(self):
-        return self.native_service.pop
-
-    @property
     def tags(self):
         return self.native_service.tags
 
@@ -133,24 +125,6 @@ class NativeService(NativeObject):
         assert self.raw_ptr is not None
 
         return get_string(lib.srl__service__get_host, self.raw_ptr)
-
-    @cached_property
-    def region(self):
-        assert self.raw_ptr is not None
-
-        region = lib.srl__service__get_region(self.raw_ptr)
-        if region == lib.REGION_EU:
-            return 'eu'
-        elif region == lib.REGION_NA:
-            return 'na'
-        else:
-            return None
-
-    @cached_property
-    def pop(self):
-        assert self.raw_ptr is not None
-
-        return get_string(lib.srl__service__get_pop, self.raw_ptr)
 
     @cached_property
     def tags(self):
@@ -216,6 +190,41 @@ class NativeService(NativeObject):
         return self.params.get(name)
 
 
+class AwsServiceMixin:
+
+    get_aws_region_func = None
+
+    @cached_property
+    def aws_region(self):
+        assert self.raw_ptr is not None
+
+        return get_string(self.get_aws_region_func, self.raw_ptr)
+
+
+class CdnServiceMixin:
+
+    get_cdn_region_func = None
+    get_pop_func = None
+
+    @cached_property
+    def cdn_region(self):
+        assert self.raw_ptr is not None
+
+        region = self.get_cdn_region_func(self.raw_ptr)
+        if region == lib.CDN_REGION_EU:
+            return 'eu'
+        elif region == lib.CDN_REGION_NA:
+            return 'na'
+        else:
+            return None
+
+    @cached_property
+    def pop(self):
+        assert self.raw_ptr is not None
+
+        return get_string(self.get_pop_func, self.raw_ptr)
+
+
 class ServiceCapacityMixin:
 
     get_capacity_func = None
@@ -245,7 +254,7 @@ class ServiceLoadMixin:
         return self.get_relative_load_func(self.raw_ptr)
 
 
-class StreamingEdgeService(ServiceLoadMixin, ServiceCapacityMixin, Service):
+class StreamingEdgeService(CdnServiceMixin, ServiceLoadMixin, ServiceCapacityMixin, Service):
     """
     Streaming edge service.
     """
@@ -253,12 +262,15 @@ class StreamingEdgeService(ServiceLoadMixin, ServiceCapacityMixin, Service):
     free_func = lib.srl__streaming_edge_service__free
     to_service_func = lib.srl__streaming_edge_service__to_service
 
+    get_cdn_region_func = lib.srl__streaming_edge_service__get_cdn_region
+    get_pop_func = lib.srl__streaming_edge_service__get_pop
+
     get_capacity_func = lib.srl__streaming_edge_service__get_capacity
     get_load_func = lib.srl__streaming_edge_service__get_load
     get_relative_load_func = lib.srl__streaming_edge_service__get_relative_load
 
 
-class StreamingMasterService(ServiceCapacityMixin, Service):
+class StreamingMasterService(CdnServiceMixin, ServiceCapacityMixin, Service):
     """
     Streaming master service.
     """
@@ -266,10 +278,13 @@ class StreamingMasterService(ServiceCapacityMixin, Service):
     free_func = lib.srl__streaming_master_service__free
     to_service_func = lib.srl__streaming_master_service__to_service
 
+    get_cdn_region_func = lib.srl__streaming_master_service__get_cdn_region
+    get_pop_func = lib.srl__streaming_master_service__get_pop
+
     get_capacity_func = lib.srl__streaming_master_service__get_capacity
 
 
-class ArrowAsnsService(ServiceCapacityMixin, Service):
+class ArrowAsnsService(CdnServiceMixin, ServiceCapacityMixin, Service):
     """
     Arrow ASNS service.
     """
@@ -277,7 +292,21 @@ class ArrowAsnsService(ServiceCapacityMixin, Service):
     free_func = lib.srl__arrow_asns_service__free
     to_service_func = lib.srl__arrow_asns_service__to_service
 
+    get_cdn_region_func = lib.srl__arrow_asns_service__get_cdn_region
+    get_pop_func = lib.srl__arrow_asns_service__get_pop
+
     get_capacity_func = lib.srl__arrow_asns_service__get_capacity
+
+
+class RecordingStreamerService(AwsServiceMixin, Service):
+    """
+    Recording streamer service.
+    """
+
+    free_func = lib.srl__recording_streamer_service__free
+    to_service_func = lib.srl__recording_streamer_service__to_service
+
+    get_aws_region_func = lib.srl__recording_streamer_service__get_aws_region
 
 
 class Consul(NativeObject):
@@ -369,6 +398,16 @@ class Consul(NativeObject):
             lib.srl__arrow_asns_services__next,
             lib.srl__arrow_asns_services__free,
             ArrowAsnsService)
+
+    def get_recording_streamer_services(self):
+        """
+        Get a list of all recording streamer services.
+        """
+        return self.get_services(
+            lib.srl__consul__get_all_recording_streamer_services,
+            lib.srl__recording_streamer_services__next,
+            lib.srl__recording_streamer_services__free,
+            RecordingStreamerService)
 
     def add_update_callback(self, cb):
         """
