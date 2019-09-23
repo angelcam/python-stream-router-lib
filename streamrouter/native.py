@@ -202,6 +202,7 @@ class StreamRouterLibrary(Library):
             ('srl__router__assign_recording_streamer_service', [c_void_p, c_char_p], c_void_p),
             ('srl__router__construct_edge_route', [c_void_p, c_int, c_void_p], c_void_p),
             ('srl__router__construct_master_route', [c_void_p, c_int, c_void_p], c_void_p),
+            ('srl__router__construct_recording_route', [c_void_p, c_char_p, c_char_p], c_void_p),
             ('srl__router__construct_recording_clip_route', [c_void_p, c_char_p, c_char_p], c_void_p),
             ('srl__router__create_streaming_server_access_token',
                 [c_void_p, c_char_p, c_int, c_uint32, c_char_p, c_size_t], c_size_t),
@@ -251,15 +252,23 @@ class StreamRouterLibrary(Library):
                 [c_void_p, c_char_p, c_int, c_uint32, c_char_p, c_size_t], c_size_t),
             ('srl__live_stream_route__free', [c_void_p]),
 
+            # srl__recording_route__XXX functions:
+            ('srl__recording_route__to_recording_download_route', [c_void_p], c_void_p),
+            ('srl__recording_route__free', [c_void_p]),
+
             # srl__recording_clip_route__XXX functions:
-            ('srl__recording_clip_route__get_service', [c_void_p], c_void_p),
-            ('srl__recording_clip_route__get_base_url_with_custom_scheme',
-                [c_void_p, c_char_p, c_char_p, c_size_t], c_size_t),
-            ('srl__recording_clip_route__get_download_url_with_custom_scheme',
-                [c_void_p, c_char_p, c_uint64, c_uint64, c_uint32, c_char_p, c_size_t], c_size_t),
-            ('srl__recording_clip_route__get_snapshot_url_with_custom_scheme',
-                [c_void_p, c_char_p, c_uint64, c_uint32, c_char_p, c_size_t], c_size_t),
+            ('srl__recording_clip_route__to_recording_download_route', [c_void_p], c_void_p),
             ('srl__recording_clip_route__free', [c_void_p]),
+
+            # srl__recording_download_route__XXX functions:
+            ('srl__recording_download_route__get_service', [c_void_p], c_void_p),
+            ('srl__recording_download_route__get_base_url_with_custom_scheme',
+                [c_void_p, c_char_p, c_char_p, c_size_t], c_size_t),
+            ('srl__recording_download_route__get_download_url_with_custom_scheme',
+                [c_void_p, c_char_p, c_uint64, c_uint64, c_char_p, c_uint32, c_char_p, c_size_t], c_size_t),
+            ('srl__recording_download_route__get_snapshot_url_with_custom_scheme',
+                [c_void_p, c_char_p, c_uint64, c_uint32, c_char_p, c_size_t], c_size_t),
+            ('srl__recording_download_route__free', [c_void_p]),
 
             # srl__streaming_edge_service__XXX functions:
             ('srl__streaming_edge_service__get_cdn_region', [c_void_p], c_int),

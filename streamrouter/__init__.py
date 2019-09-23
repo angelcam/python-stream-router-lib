@@ -7,7 +7,7 @@ from .consul import (
 )
 from .router import (
     Camera,
-    LiveStreamRoute, EdgeRoute, MasterRoute, RecordingClipRoute,
+    LiveStreamRoute, EdgeRoute, MasterRoute, RecordingClipRoute, RecordingDownloadRoute, RecordingRoute,
     StreamRouter,
     RoutingFailed, UnsupportedStreamFormat,
 )
@@ -19,7 +19,7 @@ __all__ = (
     'Consul',
     'SynchronizationError',
     'Camera',
-    'LiveStreamRoute', 'MasterRoute', 'EdgeRoute', 'RecordingClipRoute',
+    'LiveStreamRoute', 'MasterRoute', 'EdgeRoute', 'RecordingClipRoute', 'RecordingDownloadRoute', 'RecordingRoute',
     'StreamRouter',
     'RoutingFailed', 'UnsupportedStreamFormat',
 )
