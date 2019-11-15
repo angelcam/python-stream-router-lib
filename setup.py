@@ -1,10 +1,12 @@
 # flake8: noqa
 
+# NOTE: this library requires libstreamrouter.so v0.8.x
+
 from setuptools import setup, find_packages
 
 setup(
     name="streamrouter",
-    version='5.1.0',
+    version='5.2.0',
     description="Angelcam stream router library",
     keywords="asyncio stream router",
     author="Angelcam",
