@@ -332,13 +332,53 @@ class MasterRoute(LiveStreamRoute):
         return service
 
 
-class RecordingDownloadRoute(NativeObject):
+class RecordingStreamerRouteMixin(NativeObject):
+
+    proto = 'https'
+
+    get_service_func = None
+    get_base_url_with_custom_scheme_func = None
+
+    def get_service(self):
+        """
+        Get the recording streamer service used in this route.
+        """
+        assert self.raw_ptr is not None
+
+        service = self.get_service_func(self.raw_ptr)
+
+        service = RecordingStreamerService(service, free_raw_ptr=False)
+
+        # NOTE: the route MUST NOT be garbage collected if the service is still
+        # reachable
+        service.route = self
+
+        return service
+
+    def get_base_url(self):
+        """
+        Get route base URL.
+        """
+        assert self.raw_ptr is not None
+
+        scheme = self.proto.encode('utf-8')
+
+        return get_string(
+            self.get_base_url_with_custom_scheme_func,
+            self.raw_ptr,
+            scheme)
+
+
+class RecordingDownloadRoute(RecordingStreamerRouteMixin, NativeObject):
     """
     Common base class for various types of recording download routes.
     """
 
     free_func = None
     to_recording_download_route_func = None
+    to_create_recording_stream_route_func = None
+    get_service_func = None
+    get_base_url_with_custom_scheme_func = None
 
     def __init__(self, raw_ptr, free_raw_ptr=True, proto='https'):
         if free_raw_ptr:
@@ -348,28 +388,42 @@ class RecordingDownloadRoute(NativeObject):
 
         super().__init__(raw_ptr, free_func=free_func)
 
-        route = self.to_recording_download_route_func(raw_ptr)
+        self.proto = proto
 
-        self.native_route = NativeRecordingDownloadRoute(route, proto=proto)
+        recording_download_route = self.to_recording_download_route_func(raw_ptr)
+        create_recording_stream_route = self.to_create_recording_stream_route_func(raw_ptr)
+
+        self.native_recording_download_route = NativeRecordingDownloadRoute(
+            recording_download_route,
+            proto=proto,
+        )
+
+        self.native_create_recording_stream_route = NativeCreateRecordingStreamRoute(
+            create_recording_stream_route,
+            proto=proto,
+        )
 
     def __del__(self):
-        # free the casted reference first
-        self.native_route.__del__()
+        # free the casted references first
+        self.native_recording_download_route.__del__()
+        self.native_create_recording_stream_route.__del__()
 
         # and then the original object
         super().__del__()
 
-    def get_service(self):
-        return self.native_route.get_service()
-
-    def get_base_url(self):
-        return self.native_route.get_base_url()
-
     def get_download_url(self, start, end, filename=None, ttl=None):
-        return self.native_route.get_download_url(start, end, filename=filename, ttl=ttl)
+        return self.native_recording_download_route.get_download_url(
+            start,
+            end,
+            filename=filename,
+            ttl=ttl,
+        )
 
     def get_snapshot_url(self, at, ttl=None):
-        return self.native_route.get_snapshot_url(at, ttl=ttl)
+        return self.native_recording_download_route.get_snapshot_url(at, ttl=ttl)
+
+    def get_stream_url(self, ttl=None):
+        return self.native_create_recording_stream_route.get_stream_url(ttl=ttl)
 
 
 class NativeRecordingDownloadRoute(NativeObject):
@@ -386,35 +440,6 @@ class NativeRecordingDownloadRoute(NativeObject):
         super().__init__(raw_ptr, free_func=free_func)
 
         self.proto = proto
-
-    def get_service(self):
-        """
-        Get the recording streamer service used in this route.
-        """
-        assert self.raw_ptr is not None
-
-        service = lib.srl__recording_download_route__get_service(self.raw_ptr)
-
-        service = RecordingStreamerService(service, free_raw_ptr=False)
-
-        # NOTE: the route MUST NOT be garbage collected if the service is still
-        # reachable
-        service.route = self
-
-        return service
-
-    def get_base_url(self):
-        """
-        Get clip base URL.
-        """
-        assert self.raw_ptr is not None
-
-        scheme = self.proto.encode('utf-8')
-
-        return get_string(
-            lib.srl__recording_download_route__get_base_url_with_custom_scheme,
-            self.raw_ptr,
-            scheme)
 
     def get_download_url(self, start, end, filename=None, ttl=None):
         """
@@ -464,6 +489,41 @@ class NativeRecordingDownloadRoute(NativeObject):
             ttl)
 
 
+class NativeCreateRecordingStreamRoute(NativeObject):
+    """
+    A wrapper around a native CreateRecordingStreamRoute object.
+    """
+
+    def __init__(self, raw_ptr, free_raw_ptr=True, proto='https'):
+        if free_raw_ptr:
+            free_func = lib.srl__create_recording_stream_route__free
+        else:
+            free_func = None
+
+        super().__init__(raw_ptr, free_func=free_func)
+
+        self.proto = proto
+
+    def get_stream_url(self, ttl=None):
+        """
+        Get stream URL.
+        """
+        assert self.raw_ptr is not None
+
+        if ttl is None:
+            ttl = 0
+
+        assert type(ttl) is int
+
+        scheme = self.proto.encode('utf-8')
+
+        return get_string(
+            lib.srl__create_recording_stream_route__get_stream_url_with_custom_scheme,
+            self.raw_ptr,
+            scheme,
+            ttl)
+
+
 class RecordingRoute(RecordingDownloadRoute):
     """
     Route for constructing URLs for recording downloads and snapshots.
@@ -471,6 +531,9 @@ class RecordingRoute(RecordingDownloadRoute):
 
     free_func = lib.srl__recording_route__free
     to_recording_download_route_func = lib.srl__recording_route__to_recording_download_route
+    to_create_recording_stream_route_func = lib.srl__recording_route__to_create_recording_stream_route
+    get_service_func = lib.srl__recording_route__get_service
+    get_base_url_with_custom_scheme_func = lib.srl__recording_route__get_base_url_with_custom_scheme
 
 
 class RecordingClipRoute(RecordingDownloadRoute):
@@ -480,6 +543,50 @@ class RecordingClipRoute(RecordingDownloadRoute):
 
     free_func = lib.srl__recording_clip_route__free
     to_recording_download_route_func = lib.srl__recording_clip_route__to_recording_download_route
+    to_create_recording_stream_route_func = lib.srl__recording_clip_route__to_create_recording_stream_route
+    get_service_func = lib.srl__recording_clip_route__get_service
+    get_base_url_with_custom_scheme_func = lib.srl__recording_clip_route__get_base_url_with_custom_scheme
+
+
+class RecordingStreamRoute(RecordingStreamerRouteMixin, NativeObject):
+
+    get_service_func = lib.srl__recording_stream_route__get_service
+    get_base_url_with_custom_scheme_func = lib.srl__recording_stream_route__get_base_url_with_custom_scheme
+
+    def __init__(self, raw_ptr, free_raw_ptr=True, proto='https'):
+        if free_raw_ptr:
+            free_func = lib.srl__recording_stream_route__free
+        else:
+            free_func = None
+
+        super().__init__(raw_ptr, free_func=free_func)
+
+        self.proto = proto
+
+    def get_url(self, native_function):
+        """
+        Get URL using a given native function.
+        """
+        assert self.raw_ptr is not None
+
+        scheme = self.proto.encode('utf-8')
+
+        return get_string(native_function, self.raw_ptr, scheme)
+
+    def get_play_url(self):
+        return self.get_url(lib.srl__recording_stream_route__get_play_url_with_custom_scheme)
+
+    def get_pause_url(self):
+        return self.get_url(lib.srl__recording_stream_route__get_pause_url_with_custom_scheme)
+
+    def get_speed_url(self):
+        return self.get_url(lib.srl__recording_stream_route__get_speed_url_with_custom_scheme)
+
+    def get_hls_playlist_url(self):
+        return self.get_url(lib.srl__recording_stream_route__get_hls_playlist_url_with_custom_scheme)
+
+    def get_mjpeg_stream_url(self):
+        return self.get_url(lib.srl__recording_stream_route__get_mjpeg_stream_url_with_custom_scheme)
 
 
 class StreamRouter(NativeObject):
@@ -666,29 +773,48 @@ class StreamRouter(NativeObject):
             return route_factory(route, proto=self.config.stream_proto)
 
     def construct_recording_route(self, aws_region, recording_id):
-        return self.construct_recording_download_route(
+        assert type(aws_region) is str
+        assert type(recording_id) is str
+
+        aws_region = aws_region.encode('utf-8')
+        recording_id = recording_id.encode('utf-8')
+
+        return self.construct_recording_streamer_route(
             lib.srl__router__construct_recording_route,
             RecordingRoute,
             aws_region,
             recording_id)
 
     def construct_recording_clip_route(self, aws_region, clip_id):
-        return self.construct_recording_download_route(
+        assert type(aws_region) is str
+        assert type(clip_id) is str
+
+        aws_region = aws_region.encode('utf-8')
+        clip_id = clip_id.encode('utf-8')
+
+        return self.construct_recording_streamer_route(
             lib.srl__router__construct_recording_clip_route,
             RecordingClipRoute,
             aws_region,
             clip_id)
 
-    def construct_recording_download_route(self, native_function, route_factory, aws_region, recording_id):
-        assert type(aws_region) is str
-        assert type(recording_id) is str
+    def construct_recording_stream_route(self, service_id, stream_id):
+        assert type(service_id) is str
+        assert type(stream_id) is str
 
+        service_id = service_id.encode('utf-8')
+        stream_id = stream_id.encode('utf-8')
+
+        return self.construct_recording_streamer_route(
+            lib.srl__router__construct_recording_stream_route,
+            RecordingStreamRoute,
+            service_id,
+            stream_id)
+
+    def construct_recording_streamer_route(self, native_function, route_factory, *args):
         assert self.raw_ptr is not None
 
-        aws_region = aws_region.encode('utf-8')
-        clip_id = recording_id.encode('utf-8')
-
-        route = native_function(self.raw_ptr, aws_region, clip_id)
+        route = native_function(self.raw_ptr, *args)
         if not route:
             raise RoutingFailed("route cannot be constructed")
 
