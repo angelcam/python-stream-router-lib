@@ -3,10 +3,27 @@ import ctypes.util
 import logging
 import threading
 
-from ctypes import c_char_p, c_double, c_int, c_uint16, c_uint32, c_uint64, c_void_p, c_size_t, CDLL, CFUNCTYPE
+from ctypes import c_char_p, c_double, c_int, c_uint, c_uint16, c_uint32, c_uint64, c_void_p, c_size_t, CDLL, CFUNCTYPE
 
 logger = logging.getLogger(__name__)
 thread_local = threading.local()
+
+
+class UnsupportedNativeLibrary(Exception):
+
+    def __init__(self, lib, expected, actual):
+        exp_major, exp_minor, exp_patch = expected
+        act_major, act_minor, act_patch = actual
+
+        super().__init__("Unsupported version of the native library {} {}.{}.{} < {}.{}.{}".format(
+            lib,
+            act_major,
+            act_minor,
+            act_patch,
+            exp_major,
+            exp_minor,
+            exp_patch,
+        ))
 
 
 class Library:
@@ -104,6 +121,8 @@ class StreamRouterLibrary(Library):
 
     library = 'streamrouter'
 
+    required_lib_version = (0, 8, 1)
+
     LOG_LEVEL_TRACE = 0
     LOG_LEVEL_DEBUG = 1
     LOG_LEVEL_INFO = 2
@@ -126,6 +145,7 @@ class StreamRouterLibrary(Library):
     STREAM_FORMAT_MP4 = 1
     STREAM_FORMAT_MJPEG = 2
     STREAM_FORMAT_LIVE_SNAPSHOT = 3
+    STREAM_FORMAT_MPEGTS = 4
 
     LOG_CALLBACK = CFUNCTYPE(None, c_char_p, c_size_t, c_int, c_char_p, c_void_p, c_size_t)
 
@@ -171,8 +191,37 @@ class StreamRouterLibrary(Library):
 
         self.srl__set_log_callback(self.log_callback)
 
+        self.check_lib_version()
+
+    def check_lib_version(self):
+        actual = self.lib_version
+        expected = self.required_lib_version
+
+        exp_major, exp_minor, exp_patch = expected
+        act_major, act_minor, act_patch = actual
+
+        if act_major != exp_major:
+            raise UnsupportedNativeLibrary(self.library, expected, actual)
+        if act_major == 0 and act_minor != exp_minor:
+            raise UnsupportedNativeLibrary(self.library, expected, actual)
+        if act_major > 0 and act_minor < exp_minor:
+            raise UnsupportedNativeLibrary(self.library, expected, actual)
+        if act_minor == exp_minor and act_patch < exp_patch:
+            raise UnsupportedNativeLibrary(self.library, expected, actual)
+
+    @property
+    def lib_version(self):
+        major = self.srl__lib_version__major()
+        minor = self.srl__lib_version__minor()
+        patch = self.srl__lib_version__patch()
+
+        return major, minor, patch
+
     def load_symbols(self):
         self.load_functions((
+            ('srl__lib_version__major', [], c_uint),
+            ('srl__lib_version__minor', [], c_uint),
+            ('srl__lib_version__patch', [], c_uint),
             ('srl__set_log_callback', [self.LOG_CALLBACK]),
             ('srl__log_message_kv_pairs__get', [c_void_p, c_size_t], c_void_p),
             ('srl__log_message_kv_pair__get_key', [c_void_p, c_char_p, c_size_t], c_size_t),
