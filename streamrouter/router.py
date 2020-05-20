@@ -125,6 +125,7 @@ class LiveStreamRoute(NativeObject):
 
     STREAM_FORMAT_HLS = "hls"
     STREAM_FORMAT_MP4 = "mp4"
+    STREAM_FORMAT_MPEGTS = "mpegts"
     STREAM_FORMAT_MJPEG = "mjpeg"
     LIVE_SNAPSHOT = "jpeg"
 
@@ -172,6 +173,9 @@ class LiveStreamRoute(NativeObject):
     def get_mp4_url(self, ttl=None):
         return self.get_url(self.STREAM_FORMAT_MP4, ttl=ttl)
 
+    def get_mpegts_url(self, ttl=None):
+        return self.get_url(self.STREAM_FORMAT_MPEGTS, ttl=ttl)
+
     def get_snapshot_url(self, ttl=None):
         return self.get_url(self.LIVE_SNAPSHOT, ttl=ttl)
 
@@ -184,6 +188,7 @@ class NativeLiveStreamRoute(NativeObject):
     stream_format_map = {
         LiveStreamRoute.STREAM_FORMAT_HLS: lib.STREAM_FORMAT_HLS,
         LiveStreamRoute.STREAM_FORMAT_MP4: lib.STREAM_FORMAT_MP4,
+        LiveStreamRoute.STREAM_FORMAT_MPEGTS: lib.STREAM_FORMAT_MPEGTS,
         LiveStreamRoute.STREAM_FORMAT_MJPEG: lib.STREAM_FORMAT_MJPEG,
         LiveStreamRoute.LIVE_SNAPSHOT: lib.STREAM_FORMAT_LIVE_SNAPSHOT,
     }
