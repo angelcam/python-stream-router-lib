@@ -272,6 +272,19 @@ class EdgeRoute(LiveStreamRoute):
         """
         return self.get_service(lib.srl__edge_route__get_streaming_edge_service, StreamingEdgeService)
 
+    def get_base_url(self):
+        """
+        Get base URL for various types of streams.
+        """
+        assert self.raw_ptr is not None
+
+        scheme = self.proto.encode('utf-8')
+
+        return get_string(
+            lib.srl__edge_route__get_base_url_with_custom_scheme,
+            self.raw_ptr,
+            scheme)
+
     def get_hls_base_url(self):
         """
         Get base URL for HLS segments.

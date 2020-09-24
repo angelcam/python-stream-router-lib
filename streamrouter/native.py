@@ -121,7 +121,7 @@ class StreamRouterLibrary(Library):
 
     library = 'streamrouter'
 
-    required_lib_version = (0, 8, 1)
+    required_lib_version = (0, 9, 1)
 
     LOG_LEVEL_TRACE = 0
     LOG_LEVEL_DEBUG = 1
@@ -283,6 +283,8 @@ class StreamRouterLibrary(Library):
             ('srl__edge_route__to_live_stream_route', [c_void_p], c_void_p),
             ('srl__edge_route__get_streaming_master_service', [c_void_p], c_void_p),
             ('srl__edge_route__get_streaming_edge_service', [c_void_p], c_void_p),
+            ('srl__edge_route__get_base_url_with_custom_scheme',
+                [c_void_p, c_char_p, c_char_p, c_size_t], c_size_t),
             ('srl__edge_route__get_hls_base_url_with_custom_scheme',
                 [c_void_p, c_char_p, c_char_p, c_size_t], c_size_t),
             ('srl__edge_route__free', [c_void_p]),
