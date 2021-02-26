@@ -121,7 +121,7 @@ class StreamRouterLibrary(Library):
 
     library = 'streamrouter'
 
-    required_lib_version = (0, 9, 1)
+    required_lib_version = (0, 10, 0)
 
     LOG_LEVEL_TRACE = 0
     LOG_LEVEL_DEBUG = 1
@@ -146,6 +146,7 @@ class StreamRouterLibrary(Library):
     STREAM_FORMAT_MJPEG = 2
     STREAM_FORMAT_LIVE_SNAPSHOT = 3
     STREAM_FORMAT_MPEGTS = 4
+    STREAM_FORMAT_MP4_CLIP = 5
 
     LOG_CALLBACK = CFUNCTYPE(None, c_char_p, c_size_t, c_int, c_char_p, c_void_p, c_size_t)
 
