@@ -6,8 +6,8 @@ from .consul import (
     SynchronizationError,
 )
 from .router import (
-    Camera,
-    LiveStreamRoute, EdgeRoute, MasterRoute, RecordingClipRoute, RecordingDownloadRoute, RecordingRoute,
+    Device,
+    CameraRoute, RecordingClipRoute, RecordingRoute, RecordingStreamRoute, SpeakerRoute,
     StreamRouter,
     RoutingFailed, UnsupportedStreamFormat,
 )
@@ -18,8 +18,8 @@ __all__ = (
     'ArrowAsnsService', 'RecordingStreamerService', 'StreamingMasterService', 'StreamingEdgeService',
     'Consul',
     'SynchronizationError',
-    'Camera',
-    'LiveStreamRoute', 'MasterRoute', 'EdgeRoute', 'RecordingClipRoute', 'RecordingDownloadRoute', 'RecordingRoute',
+    'Device',
+    'CameraRoute', 'RecordingClipRoute', 'RecordingRoute', 'RecordingStreamRoute', 'SpeakerRoute',
     'StreamRouter',
     'RoutingFailed', 'UnsupportedStreamFormat',
 )

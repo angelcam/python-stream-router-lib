@@ -21,8 +21,6 @@ def native_router_config_factory(config):
     """
     assert type(config) is RouterConfig
     assert type(config.sync_period) is int
-    assert type(config.streaming_server_secret) is str
-    assert type(config.recording_streamer_secret) is str
 
     assert config.sync_period > 0
 
@@ -33,13 +31,17 @@ def native_router_config_factory(config):
     if not cfg:
         raise Exception("Unable to create a native router configuration object.")
 
-    streaming_server_secret = config.streaming_server_secret.encode('utf-8')
-    recording_streamer_secret = config.recording_streamer_secret.encode('utf-8')
-
     lib.srl__router_cfg__use_http(cfg)
-    lib.srl__router_cfg__set_streaming_server_secret(cfg, streaming_server_secret)
-    lib.srl__router_cfg__set_recording_streamer_secret(cfg, recording_streamer_secret)
     lib.srl__router_cfg__set_update_interval(cfg, config.sync_period)
+
+    def set_secret(native_fn, secret):
+        if secret is not None:
+            assert type(secret) is str
+            secret = secret.encode('utf-8')
+            native_fn(cfg, secret)
+
+    set_secret(lib.srl__router_cfg__set_streaming_server_secret, config.streaming_server_secret)
+    set_secret(lib.srl__router_cfg__set_recording_streamer_secret, config.recording_streamer_secret)
 
     try:
         yield cfg
@@ -48,36 +50,36 @@ def native_router_config_factory(config):
 
 
 @contextmanager
-def native_camera_factory(camera):
+def native_device_factory(device):
     """
-    A context manager that yields native camera object initialized from a
-    given Camera.
+    A context manager that yields native device object initialized from a
+    given Device.
     """
-    assert type(camera) is Camera
+    assert type(device) is Device
 
-    camera_id = camera.camera_id.encode('utf-8')
+    device_id = device.device_id.encode('utf-8')
 
-    if camera.arrow_uuid is None:
+    if device.arrow_uuid is None:
         arrow_uuid = None
     else:
-        arrow_uuid = camera.arrow_uuid.encode('utf-8')
+        arrow_uuid = device.arrow_uuid.encode('utf-8')
 
-    if camera.setup == Camera.COMMON:
-        res = lib.srl__camera__new_common(camera_id)
-    elif camera.setup == Camera.ARROW:
-        res = lib.srl__camera__new_arrow(camera_id, arrow_uuid)
-    elif camera.setup == Camera.AOC:
-        res = lib.srl__camera__new_aoc(camera_id)
+    if device.setup == Device.COMMON:
+        res = lib.srl__device__new_common(device_id)
+    elif device.setup == Device.ARROW:
+        res = lib.srl__device__new_arrow(device_id, arrow_uuid)
+    elif device.setup == Device.AOC:
+        res = lib.srl__device__new_aoc(device_id)
     else:
-        raise ValueError("Unsupported camera setup.")
+        raise ValueError("Unsupported device setup.")
 
     if not res:
-        raise Exception("Unable to create a native resource.")
+        raise Exception("Unable to create a native device.")
 
     try:
         yield res
     finally:
-        lib.srl__camera__free(res)
+        lib.srl__device__free(res)
 
 
 class UnsupportedStreamFormat(Exception):
@@ -90,9 +92,9 @@ class RoutingFailed(Exception):
     pass
 
 
-class Camera:
+class Device:
     """
-    A camera.
+    A device.
     """
 
     COMMON = 'common'
@@ -100,38 +102,30 @@ class Camera:
     AOC = 'aoc'
 
     # camera in preview stream have id with non-numeric prefix
-    re_camera_id = re.compile(r"^\D*(\d+)$")
+    re_device_id = re.compile(r"^\D*(\d+)$")
     re_arrow_uuid = re.compile(r"^([0-9a-fA-F]{8})-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{12}$")
 
-    def __init__(self, camera_id, setup=COMMON, arrow_uuid=None):
-        camera_id = str(camera_id)
+    def __init__(self, device_id, setup=COMMON, arrow_uuid=None):
+        device_id = str(device_id)
 
-        m_camera_id = self.re_camera_id.match(camera_id)
+        m_device_id = self.re_device_id.match(device_id)
 
-        assert m_camera_id
+        assert m_device_id
         assert setup in {self.COMMON, self.ARROW, self.AOC}
         assert setup != self.ARROW or self.re_arrow_uuid.match(arrow_uuid)
 
-        self.camera_id = camera_id
-        self.numeric_camera_id = int(m_camera_id.group(1))
+        self.device_id = device_id
+        self.numeric_device_id = int(m_device_id.group(1))
         self.setup = setup
         self.arrow_uuid = arrow_uuid
 
 
-class LiveStreamRoute(NativeObject):
-    """
-    Common base class for various types of live stream routes.
-    """
-
-    STREAM_FORMAT_HLS = "hls"
-    STREAM_FORMAT_MP4 = "mp4"
-    STREAM_FORMAT_MPEGTS = "mpegts"
-    STREAM_FORMAT_MJPEG = "mjpeg"
-    LIVE_SNAPSHOT = "jpeg"
-    MP4_CLIP = "mp4-clip"
+class Route(NativeObject):
 
     free_func = None
-    to_live_stream_route_func = None
+    get_scheme_func = None
+    set_scheme_func = None
+    get_base_url_func = None
 
     def __init__(self, raw_ptr, free_raw_ptr=True, proto='https'):
         if free_raw_ptr:
@@ -141,29 +135,133 @@ class LiveStreamRoute(NativeObject):
 
         super().__init__(raw_ptr, free_func=free_func)
 
-        route = self.to_live_stream_route_func(raw_ptr)
-
         self.proto = proto
-        self.native_route = NativeLiveStreamRoute(route, proto=proto)
 
-    def __del__(self):
-        # free the casted reference first
-        self.native_route.__del__()
+    @property
+    def proto(self):
+        """
+        Get URL scheme.
+        """
 
-        # and then the original object
-        super().__del__()
+        assert self.raw_ptr is not None
+
+        return get_string(self.get_scheme_func, self.raw_ptr)
+
+    @proto.setter
+    def proto(self, proto):
+        """
+        Set URL shceme.
+        """
+        assert type(proto) is str
+
+        assert self.raw_ptr is not None
+
+        proto = proto.encode('utf-8')
+
+        self.set_scheme_func(self.raw_ptr, proto)
+
+    def get_service(self, native_function, service_factory):
+        assert self.raw_ptr is not None
+
+        service = native_function(self.raw_ptr)
+
+        if not service:
+            return None
+
+        service = service_factory(service, free_raw_ptr=False)
+
+        # NOTE: the route MUST NOT be garbage collected if the service is still
+        # reachable
+        service.route = self
+
+        return service
+
+    def get_base_url(self):
+        """
+        Get route base URL.
+        """
+        assert self.raw_ptr is not None
+
+        return get_string(self.get_base_url_func, self.raw_ptr)
+
+
+class CameraRoute(Route):
+    """
+    Route to a camera.
+    """
+
+    free_func = lib.srl__camera_route__free
+    get_scheme_func = lib.srl__camera_route__get_url_scheme
+    set_scheme_func = lib.srl__camera_route__set_url_scheme
+    get_base_url_func = lib.srl__camera_route__get_base_url
+
+    STREAM_FORMAT_HLS = "hls"
+    STREAM_FORMAT_MP4 = "mp4"
+    STREAM_FORMAT_MPEGTS = "mpegts"
+    STREAM_FORMAT_MJPEG = "mjpeg"
+    LIVE_SNAPSHOT = "jpeg"
+    MP4_CLIP = "mp4-clip"
+
+    stream_format_map = {
+        STREAM_FORMAT_HLS: lib.STREAM_FORMAT_HLS,
+        STREAM_FORMAT_MP4: lib.STREAM_FORMAT_MP4,
+        STREAM_FORMAT_MPEGTS: lib.STREAM_FORMAT_MPEGTS,
+        STREAM_FORMAT_MJPEG: lib.STREAM_FORMAT_MJPEG,
+        LIVE_SNAPSHOT: lib.STREAM_FORMAT_LIVE_SNAPSHOT,
+        MP4_CLIP: lib.STREAM_FORMAT_MP4_CLIP,
+    }
+
+    def get_streaming_master(self):
+        """
+        Get the streaming master service used in this route.
+        """
+        return self.get_service(lib.srl__camera_route__get_streaming_master, StreamingMasterService)
+
+    def get_streaming_edge(self):
+        """
+        Get the streaming edge service used in this route.
+        """
+        return self.get_service(lib.srl__camera_route__get_streaming_edge, StreamingEdgeService)
 
     def is_supported_format(self, stream_format):
         """
         Check if a given stream format is supported by this type of route.
         """
-        return self.native_route.is_supported_format(stream_format)
+        native_stream_format = self.stream_format_map[stream_format]
+
+        assert self.raw_ptr is not None
+
+        res = lib.srl__camera_route__is_supported_format(self.raw_ptr, native_stream_format)
+
+        return bool(res)
+
+    def get_hls_base_url(self):
+        """
+        Get base URL for HLS segments.
+        """
+        assert self.raw_ptr is not None
+
+        return get_string(lib.srl__camera_route__get_hls_base_url, self.raw_ptr)
 
     def get_url(self, stream_format, ttl=None):
         """
         Get stream URL for a given format.
         """
-        return self.native_route.get_url(stream_format, ttl=ttl)
+        if ttl is None:
+            ttl = 0
+
+        assert type(ttl) is int
+
+        if not self.is_supported_format(stream_format):
+            raise UnsupportedStreamFormat(stream_format)
+
+        native_stream_format = self.stream_format_map[stream_format]
+
+        return get_string(
+            lib.srl__camera_route__get_url,
+            self.raw_ptr,
+            native_stream_format,
+            ttl)
 
     def get_mjpeg_url(self, ttl=None):
         return self.get_url(self.STREAM_FORMAT_MJPEG, ttl=ttl)
@@ -184,285 +282,85 @@ class LiveStreamRoute(NativeObject):
         return self.get_url(self.MP4_CLIP, ttl=ttl)
 
 
-class NativeLiveStreamRoute(NativeObject):
+class SpeakerRoute(Route):
     """
-    A wrapper around a native live stream route object.
+    Route to a speaker.
     """
 
-    stream_format_map = {
-        LiveStreamRoute.STREAM_FORMAT_HLS: lib.STREAM_FORMAT_HLS,
-        LiveStreamRoute.STREAM_FORMAT_MP4: lib.STREAM_FORMAT_MP4,
-        LiveStreamRoute.STREAM_FORMAT_MPEGTS: lib.STREAM_FORMAT_MPEGTS,
-        LiveStreamRoute.STREAM_FORMAT_MJPEG: lib.STREAM_FORMAT_MJPEG,
-        LiveStreamRoute.LIVE_SNAPSHOT: lib.STREAM_FORMAT_LIVE_SNAPSHOT,
-        LiveStreamRoute.MP4_CLIP: lib.STREAM_FORMAT_MP4_CLIP,
-    }
+    free_func = lib.srl__speaker_route__free
+    get_scheme_func = lib.srl__speaker_route__get_url_scheme
+    set_scheme_func = lib.srl__speaker_route__set_url_scheme
+    get_base_url_func = lib.srl__speaker_route__get_base_url
 
-    def __init__(self, raw_ptr, free_raw_ptr=True, proto='https'):
-        if free_raw_ptr:
-            free_func = lib.srl__live_stream_route__free
-        else:
-            free_func = None
-
-        super().__init__(raw_ptr, free_func=free_func)
-
-        self.proto = proto
-
-    def is_supported_format(self, stream_format):
+    def get_streaming_master(self):
         """
-        Check if a given stream format is supported by this type of route.
+        Get the streaming master service used in this route.
         """
-        native_stream_format = self.stream_format_map[stream_format]
+        return self.get_service(lib.srl__speaker_route__get_streaming_master, StreamingMasterService)
 
+    def get_url(self, native_function, ttl=None):
         assert self.raw_ptr is not None
 
-        res = lib.srl__live_stream_route__is_supported_format(self.raw_ptr, native_stream_format)
-
-        return bool(res)
-
-    def get_url(self, stream_format, ttl=None):
-        """
-        Get stream URL for a given format.
-        """
         if ttl is None:
             ttl = 0
 
         assert type(ttl) is int
 
-        if not self.is_supported_format(stream_format):
-            raise UnsupportedStreamFormat(stream_format)
+        return get_string(native_function, self.raw_ptr, ttl)
 
-        native_stream_format = self.stream_format_map[stream_format]
-
-        scheme = self.proto.encode('utf-8')
-
-        return get_string(
-            lib.srl__live_stream_route__get_url_with_custom_scheme,
-            self.raw_ptr,
-            scheme,
-            native_stream_format,
-            ttl)
-
-
-class EdgeRoute(LiveStreamRoute):
-    """
-    Edge stream route.
-    """
-
-    free_func = lib.srl__edge_route__free
-    to_live_stream_route_func = lib.srl__edge_route__to_live_stream_route
-
-    def get_service(self, native_function, service_factory):
-        assert self.raw_ptr is not None
-
-        service = native_function(self.raw_ptr)
-
-        service = service_factory(service, free_raw_ptr=False)
-
-        # NOTE: the route MUST NOT be garbage collected if the service is still
-        # reachable
-        service.route = self
-
-        return service
-
-    def get_streaming_master_service(self):
+    def get_play_url(self, ttl=None):
         """
-        Get the streaming master service used in this route.
+        Get stream URL for a given format.
         """
-        return self.get_service(lib.srl__edge_route__get_streaming_master_service, StreamingMasterService)
+        return self.get_url(lib.srl__speaker_route__get_play_url, ttl=ttl)
 
-    def get_streaming_edge_service(self):
+    def get_web_rtc_signaling_url(self, ttl=None):
         """
-        Get the streaming edge service used in this route.
+        Get stream URL for a given format.
         """
-        return self.get_service(lib.srl__edge_route__get_streaming_edge_service, StreamingEdgeService)
-
-    def get_base_url(self):
-        """
-        Get base URL for various types of streams.
-        """
-        assert self.raw_ptr is not None
-
-        scheme = self.proto.encode('utf-8')
-
-        return get_string(
-            lib.srl__edge_route__get_base_url_with_custom_scheme,
-            self.raw_ptr,
-            scheme)
-
-    def get_hls_base_url(self):
-        """
-        Get base URL for HLS segments.
-        """
-        assert self.raw_ptr is not None
-
-        scheme = self.proto.encode('utf-8')
-
-        return get_string(
-            lib.srl__edge_route__get_hls_base_url_with_custom_scheme,
-            self.raw_ptr,
-            scheme)
+        return self.get_url(lib.srl__speaker_route__get_web_rtc_signaling_url, ttl=ttl)
 
 
-class MasterRoute(LiveStreamRoute):
-    """
-    Master stream route.
-    """
+class RecordingRouteBase(Route):
 
-    free_func = lib.srl__master_route__free
-    to_live_stream_route_func = lib.srl__master_route__to_live_stream_route
+    get_recording_streamer_func = None
 
-    def get_base_url(self):
-        """
-        Get base URL for various types of streams.
-        """
-        assert self.raw_ptr is not None
-
-        scheme = self.proto.encode('utf-8')
-
-        return get_string(
-            lib.srl__master_route__get_base_url_with_custom_scheme,
-            self.raw_ptr,
-            scheme)
-
-    def get_hls_base_url(self):
-        """
-        Get base URL for HLS segments.
-        """
-        assert self.raw_ptr is not None
-
-        scheme = self.proto.encode('utf-8')
-
-        return get_string(
-            lib.srl__master_route__get_hls_base_url_with_custom_scheme,
-            self.raw_ptr,
-            scheme)
-
-    def get_service(self):
-        """
-        Get the streaming master service used in this route.
-        """
-        assert self.raw_ptr is not None
-
-        service = lib.srl__master_route__get_service(self.raw_ptr)
-
-        service = StreamingMasterService(service, free_raw_ptr=False)
-
-        # NOTE: the route MUST NOT be garbage collected if the service is still
-        # reachable
-        service.route = self
-
-        return service
-
-
-class RecordingStreamerRouteMixin(NativeObject):
-
-    proto = 'https'
-
-    get_service_func = None
-    get_base_url_with_custom_scheme_func = None
-
-    def get_service(self):
+    def get_recording_streamer(self):
         """
         Get the recording streamer service used in this route.
         """
-        assert self.raw_ptr is not None
-
-        service = self.get_service_func(self.raw_ptr)
-
-        service = RecordingStreamerService(service, free_raw_ptr=False)
-
-        # NOTE: the route MUST NOT be garbage collected if the service is still
-        # reachable
-        service.route = self
-
-        return service
-
-    def get_base_url(self):
-        """
-        Get route base URL.
-        """
-        assert self.raw_ptr is not None
-
-        scheme = self.proto.encode('utf-8')
-
-        return get_string(
-            self.get_base_url_with_custom_scheme_func,
-            self.raw_ptr,
-            scheme)
+        return self.get_service(self.get_recording_streamer_func, RecordingStreamerService)
 
 
-class RecordingDownloadRoute(RecordingStreamerRouteMixin, NativeObject):
+class RecordingRoute(RecordingRouteBase):
     """
-    Common base class for various types of recording download routes.
+    Route to a recording.
     """
 
-    free_func = None
-    to_recording_download_route_func = None
-    to_create_recording_stream_route_func = None
-    get_service_func = None
-    get_base_url_with_custom_scheme_func = None
-
-    def __init__(self, raw_ptr, free_raw_ptr=True, proto='https'):
-        if free_raw_ptr:
-            free_func = self.free_func
-        else:
-            free_func = None
-
-        super().__init__(raw_ptr, free_func=free_func)
-
-        self.proto = proto
-
-        recording_download_route = self.to_recording_download_route_func(raw_ptr)
-        create_recording_stream_route = self.to_create_recording_stream_route_func(raw_ptr)
-
-        self.native_recording_download_route = NativeRecordingDownloadRoute(
-            recording_download_route,
-            proto=proto,
-        )
-
-        self.native_create_recording_stream_route = NativeCreateRecordingStreamRoute(
-            create_recording_stream_route,
-            proto=proto,
-        )
-
-    def __del__(self):
-        # free the casted references first
-        self.native_recording_download_route.__del__()
-        self.native_create_recording_stream_route.__del__()
-
-        # and then the original object
-        super().__del__()
-
-    def get_download_url(self, start, end, filename=None, ttl=None):
-        return self.native_recording_download_route.get_download_url(
-            start,
-            end,
-            filename=filename,
-            ttl=ttl,
-        )
-
-    def get_snapshot_url(self, at, ttl=None):
-        return self.native_recording_download_route.get_snapshot_url(at, ttl=ttl)
+    free_func = lib.srl__recording_route__free
+    get_scheme_func = lib.srl__recording_route__get_url_scheme
+    set_scheme_func = lib.srl__recording_route__set_url_scheme
+    get_base_url_func = lib.srl__recording_route__get_base_url
+    get_recording_streamer_func = lib.srl__recording_route__get_recording_streamer
+    get_stream_url_func = lib.srl__recording_route__get_stream_url
+    get_download_url_func = lib.srl__recording_route__get_download_url
+    get_snapshot_url_func = lib.srl__recording_route__get_snapshot_url
 
     def get_stream_url(self, ttl=None):
-        return self.native_create_recording_stream_route.get_stream_url(ttl=ttl)
+        """
+        Get stream URL.
+        """
+        assert self.raw_ptr is not None
 
+        if ttl is None:
+            ttl = 0
 
-class NativeRecordingDownloadRoute(NativeObject):
-    """
-    A wrapper around a native RecordingDownloadRoute object.
-    """
+        assert type(ttl) is int
 
-    def __init__(self, raw_ptr, free_raw_ptr=True, proto='https'):
-        if free_raw_ptr:
-            free_func = lib.srl__recording_download_route__free
-        else:
-            free_func = None
-
-        super().__init__(raw_ptr, free_func=free_func)
-
-        self.proto = proto
+        return get_string(
+            self.get_stream_url_func,
+            self.raw_ptr,
+            ttl)
 
     def get_download_url(self, start, end, filename=None, ttl=None):
         """
@@ -477,14 +375,12 @@ class NativeRecordingDownloadRoute(NativeObject):
 
         assert type(ttl) is int
 
-        scheme = self.proto.encode('utf-8')
         start = int(start.timestamp() * 1000000)
         end = int(end.timestamp() * 1000000)
 
         return get_string(
-            lib.srl__recording_download_route__get_download_url_with_custom_scheme,
+            self.get_download_url_func,
             self.raw_ptr,
-            scheme,
             start,
             end,
             filename,
@@ -501,90 +397,40 @@ class NativeRecordingDownloadRoute(NativeObject):
 
         assert type(ttl) is int
 
-        scheme = self.proto.encode('utf-8')
         at = int(at.timestamp() * 1000000)
 
         return get_string(
-            lib.srl__recording_download_route__get_snapshot_url_with_custom_scheme,
+            self.get_snapshot_url_func,
             self.raw_ptr,
-            scheme,
             at,
             ttl)
 
 
-class NativeCreateRecordingStreamRoute(NativeObject):
+class RecordingClipRoute(RecordingRoute):
     """
-    A wrapper around a native CreateRecordingStreamRoute object.
-    """
-
-    def __init__(self, raw_ptr, free_raw_ptr=True, proto='https'):
-        if free_raw_ptr:
-            free_func = lib.srl__create_recording_stream_route__free
-        else:
-            free_func = None
-
-        super().__init__(raw_ptr, free_func=free_func)
-
-        self.proto = proto
-
-    def get_stream_url(self, ttl=None):
-        """
-        Get stream URL.
-        """
-        assert self.raw_ptr is not None
-
-        if ttl is None:
-            ttl = 0
-
-        assert type(ttl) is int
-
-        scheme = self.proto.encode('utf-8')
-
-        return get_string(
-            lib.srl__create_recording_stream_route__get_stream_url_with_custom_scheme,
-            self.raw_ptr,
-            scheme,
-            ttl)
-
-
-class RecordingRoute(RecordingDownloadRoute):
-    """
-    Route for constructing URLs for recording downloads and snapshots.
-    """
-
-    free_func = lib.srl__recording_route__free
-    to_recording_download_route_func = lib.srl__recording_route__to_recording_download_route
-    to_create_recording_stream_route_func = lib.srl__recording_route__to_create_recording_stream_route
-    get_service_func = lib.srl__recording_route__get_service
-    get_base_url_with_custom_scheme_func = lib.srl__recording_route__get_base_url_with_custom_scheme
-
-
-class RecordingClipRoute(RecordingDownloadRoute):
-    """
-    Route for constructing URLs for recording clip downloads and snapshots.
+    Route to a recording clip.
     """
 
     free_func = lib.srl__recording_clip_route__free
-    to_recording_download_route_func = lib.srl__recording_clip_route__to_recording_download_route
-    to_create_recording_stream_route_func = lib.srl__recording_clip_route__to_create_recording_stream_route
-    get_service_func = lib.srl__recording_clip_route__get_service
-    get_base_url_with_custom_scheme_func = lib.srl__recording_clip_route__get_base_url_with_custom_scheme
+    get_scheme_func = lib.srl__recording_clip_route__get_url_scheme
+    set_scheme_func = lib.srl__recording_clip_route__set_url_scheme
+    get_base_url_func = lib.srl__recording_clip_route__get_base_url
+    get_recording_streamer_func = lib.srl__recording_clip_route__get_recording_streamer
+    get_stream_url_func = lib.srl__recording_clip_route__get_stream_url
+    get_download_url_func = lib.srl__recording_clip_route__get_download_url
+    get_snapshot_url_func = lib.srl__recording_clip_route__get_snapshot_url
 
 
-class RecordingStreamRoute(RecordingStreamerRouteMixin, NativeObject):
+class RecordingStreamRoute(RecordingRouteBase):
+    """
+    Route to a recoding stream.
+    """
 
-    get_service_func = lib.srl__recording_stream_route__get_service
-    get_base_url_with_custom_scheme_func = lib.srl__recording_stream_route__get_base_url_with_custom_scheme
-
-    def __init__(self, raw_ptr, free_raw_ptr=True, proto='https'):
-        if free_raw_ptr:
-            free_func = lib.srl__recording_stream_route__free
-        else:
-            free_func = None
-
-        super().__init__(raw_ptr, free_func=free_func)
-
-        self.proto = proto
+    free_func = lib.srl__recording_stream_route__free
+    get_scheme_func = lib.srl__recording_stream_route__get_url_scheme
+    set_scheme_func = lib.srl__recording_stream_route__set_url_scheme
+    get_base_url_func = lib.srl__recording_stream_route__get_base_url
+    get_recording_streamer_func = lib.srl__recording_stream_route__get_recording_streamer
 
     def get_url(self, native_function):
         """
@@ -592,24 +438,22 @@ class RecordingStreamRoute(RecordingStreamerRouteMixin, NativeObject):
         """
         assert self.raw_ptr is not None
 
-        scheme = self.proto.encode('utf-8')
-
-        return get_string(native_function, self.raw_ptr, scheme)
+        return get_string(native_function, self.raw_ptr)
 
     def get_play_url(self):
-        return self.get_url(lib.srl__recording_stream_route__get_play_url_with_custom_scheme)
+        return self.get_url(lib.srl__recording_stream_route__get_play_url)
 
     def get_pause_url(self):
-        return self.get_url(lib.srl__recording_stream_route__get_pause_url_with_custom_scheme)
+        return self.get_url(lib.srl__recording_stream_route__get_pause_url)
 
     def get_speed_url(self):
-        return self.get_url(lib.srl__recording_stream_route__get_speed_url_with_custom_scheme)
+        return self.get_url(lib.srl__recording_stream_route__get_speed_url)
 
     def get_hls_playlist_url(self):
-        return self.get_url(lib.srl__recording_stream_route__get_hls_playlist_url_with_custom_scheme)
+        return self.get_url(lib.srl__recording_stream_route__get_hls_playlist_url)
 
     def get_mjpeg_stream_url(self):
-        return self.get_url(lib.srl__recording_stream_route__get_mjpeg_stream_url_with_custom_scheme)
+        return self.get_url(lib.srl__recording_stream_route__get_mjpeg_stream_url)
 
 
 class StreamRouter(NativeObject):
@@ -688,13 +532,13 @@ class StreamRouter(NativeObject):
         Assign streaming master service from a given region for a given resource.
         """
         assert type(cdn_region) is str
-        assert type(camera) is Camera
+        assert type(camera) is Device
 
         cdn_region = self.cdn_region_map[cdn_region]
 
         assert self.raw_ptr is not None
 
-        with native_camera_factory(camera) as c:
+        with native_device_factory(camera) as c:
             svc = lib.srl__router__assign_streaming_master_service(self.raw_ptr, cdn_region, c)
             if not svc:
                 return None
@@ -728,7 +572,7 @@ class StreamRouter(NativeObject):
         assert type(cdn_region) is str
         assert type(arrow_uuid) is str
 
-        m_arrow_uuid = Camera.re_arrow_uuid.match(arrow_uuid)
+        m_arrow_uuid = Device.re_arrow_uuid.match(arrow_uuid)
 
         assert m_arrow_uuid
 
@@ -760,40 +604,55 @@ class StreamRouter(NativeObject):
 
         return RecordingStreamerService(svc)
 
-    def construct_master_route(self, cdn_region, camera):
+    def construct_master_camera_route(self, cdn_region, camera):
         """
-        Construct master route.
+        Construct master camera route.
         """
-        return self.construct_live_stream_route(
-            lib.srl__router__construct_master_route,
-            MasterRoute,
+        return self.construct_camera_route(
+            lib.srl__router__construct_master_camera_route,
+            CameraRoute,
             cdn_region,
             camera)
 
-    def construct_edge_route(self, cdn_region, camera):
+    def construct_edge_camera_route(self, cdn_region, camera):
         """
-        Construct edge route.
+        Construct edge camera route.
         """
-        return self.construct_live_stream_route(
-            lib.srl__router__construct_edge_route,
-            EdgeRoute,
+        return self.construct_camera_route(
+            lib.srl__router__construct_edge_camera_route,
+            CameraRoute,
             cdn_region,
             camera)
 
-    def construct_live_stream_route(self, native_function, route_factory, cdn_region, camera):
+    def construct_camera_route(self, native_function, route_factory, cdn_region, camera):
         assert type(cdn_region) is str
-        assert type(camera) is Camera
+        assert type(camera) is Device
 
         cdn_region = self.cdn_region_map[cdn_region]
 
         assert self.raw_ptr is not None
 
-        with native_camera_factory(camera) as c:
+        with native_device_factory(camera) as c:
             route = native_function(self.raw_ptr, cdn_region, c)
             if not route:
                 raise RoutingFailed("route cannot be constructed")
 
             return route_factory(route, proto=self.config.stream_proto)
+
+    def construct_speaker_route(self, cdn_region, speaker):
+        assert type(cdn_region) is str
+        assert type(speaker) is Device
+
+        cdn_region = self.cdn_region_map[cdn_region]
+
+        assert self.raw_ptr is not None
+
+        with native_device_factory(speaker) as s:
+            route = lib.srl__router__construct_speaker_route(self.raw_ptr, cdn_region, s)
+            if not route:
+                raise RoutingFailed("route cannot be constructed")
+
+            return SpeakerRoute(route, proto=self.config.stream_proto)
 
     def construct_recording_route(self, aws_region, recording_id):
         assert type(aws_region) is str
@@ -841,29 +700,26 @@ class StreamRouter(NativeObject):
         if not route:
             raise RoutingFailed("route cannot be constructed")
 
-        return route_factory(route)
+        return route_factory(route, proto=self.config.stream_proto)
 
-    def get_streaming_server_access_token(self, camera_id, stream_format, ttl=None):
+    def get_streaming_server_access_token(self, device_id, ttl=None):
         """
-        Get streaming server access token for a given camera ID.
+        Get streaming server access token for a given device ID.
         """
         if ttl is None:
             ttl = 0
 
         assert type(ttl) is int
 
-        native_stream_format = NativeLiveStreamRoute.stream_format_map[stream_format]
-
-        camera_id = str(camera_id)
-        camera_id = camera_id.encode('utf-8')
+        device_id = str(device_id)
+        device_id = device_id.encode('utf-8')
 
         assert self.raw_ptr is not None
 
         return get_string(
             lib.srl__router__create_streaming_server_access_token,
             self.raw_ptr,
-            camera_id,
-            native_stream_format,
+            device_id,
             ttl)
 
     def get_recording_streamer_access_token(self, ttl=None):
