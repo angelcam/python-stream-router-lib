@@ -121,7 +121,7 @@ class StreamRouterLibrary(Library):
 
     library = 'streamrouter'
 
-    required_lib_version = (0, 11, 0)
+    required_lib_version = (0, 11, 1)
 
     LOG_LEVEL_TRACE = 0
     LOG_LEVEL_DEBUG = 1
@@ -192,8 +192,6 @@ class StreamRouterLibrary(Library):
 
         self.srl__set_log_callback(self.log_callback)
 
-        self.check_lib_version()
-
     def check_lib_version(self):
         actual = self.lib_version
         expected = self.required_lib_version
@@ -219,10 +217,15 @@ class StreamRouterLibrary(Library):
         return major, minor, patch
 
     def load_symbols(self):
+        # we need to check the lib version before loading the remaining symbols
         self.load_functions((
             ('srl__lib_version__major', [], c_uint),
             ('srl__lib_version__minor', [], c_uint),
             ('srl__lib_version__patch', [], c_uint),
+        ))
+        self.check_lib_version()
+
+        self.load_functions((
             ('srl__set_log_callback', [self.LOG_CALLBACK]),
             ('srl__log_message_kv_pairs__get', [c_void_p, c_size_t], c_void_p),
             ('srl__log_message_kv_pair__get_key', [c_void_p, c_char_p, c_size_t], c_size_t),
@@ -302,6 +305,8 @@ class StreamRouterLibrary(Library):
             ('srl__speaker_route__set_url_scheme', [c_void_p, c_char_p]),
             ('srl__speaker_route__get_base_url', [c_void_p, c_char_p, c_size_t], c_size_t),
             ('srl__speaker_route__get_play_url',
+                [c_void_p, c_uint32, c_char_p, c_size_t], c_size_t),
+            ('srl__speaker_route__get_stop_url',
                 [c_void_p, c_uint32, c_char_p, c_size_t], c_size_t),
             ('srl__speaker_route__get_web_rtc_signaling_url',
                 [c_void_p, c_uint32, c_char_p, c_size_t], c_size_t),

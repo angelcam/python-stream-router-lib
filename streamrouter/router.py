@@ -310,13 +310,19 @@ class SpeakerRoute(Route):
 
     def get_play_url(self, ttl=None):
         """
-        Get stream URL for a given format.
+        Get URL for audio stream playback.
         """
         return self.get_url(lib.srl__speaker_route__get_play_url, ttl=ttl)
 
+    def get_stop_url(self, ttl=None):
+        """
+        Get URL for stopping audio playback.
+        """
+        return self.get_url(lib.srl__speaker_route__get_stop_url, ttl=ttl)
+
     def get_web_rtc_signaling_url(self, ttl=None):
         """
-        Get stream URL for a given format.
+        Get WebRTC signaling URL.
         """
         return self.get_url(lib.srl__speaker_route__get_web_rtc_signaling_url, ttl=ttl)
 
