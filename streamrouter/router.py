@@ -5,7 +5,7 @@ from contextlib import contextmanager
 
 from .config import RouterConfig
 from .consul import (
-    ArrowAsnsService, Consul, RecordingStreamerService, StreamingEdgeService, StreamingMasterService,
+    ArrowAsnsService, Consul, StreamingEdgeService, StreamingMasterService,
     SynchronizationError,
 )
 from .native import NativeObject, get_stream_router_lib, get_string
@@ -329,13 +329,13 @@ class SpeakerRoute(Route):
 
 class RecordingRouteBase(Route):
 
-    get_recording_streamer_func = None
+    get_streaming_edge_func = None
 
-    def get_recording_streamer(self):
+    def get_streaming_edge(self):
         """
-        Get the recording streamer service used in this route.
+        Get the streaming edge service used in this route.
         """
-        return self.get_service(self.get_recording_streamer_func, RecordingStreamerService)
+        return self.get_service(self.get_streaming_edge_func, StreamingEdgeService)
 
 
 class RecordingRoute(RecordingRouteBase):
@@ -347,7 +347,7 @@ class RecordingRoute(RecordingRouteBase):
     get_scheme_func = lib.srl__recording_route__get_url_scheme
     set_scheme_func = lib.srl__recording_route__set_url_scheme
     get_base_url_func = lib.srl__recording_route__get_base_url
-    get_recording_streamer_func = lib.srl__recording_route__get_recording_streamer
+    get_streaming_edge_func = lib.srl__recording_route__get_streaming_edge
     get_stream_url_func = lib.srl__recording_route__get_stream_url
     get_download_url_func = lib.srl__recording_route__get_download_url
     get_snapshot_url_func = lib.srl__recording_route__get_snapshot_url
@@ -421,7 +421,7 @@ class RecordingClipRoute(RecordingRoute):
     get_scheme_func = lib.srl__recording_clip_route__get_url_scheme
     set_scheme_func = lib.srl__recording_clip_route__set_url_scheme
     get_base_url_func = lib.srl__recording_clip_route__get_base_url
-    get_recording_streamer_func = lib.srl__recording_clip_route__get_recording_streamer
+    get_streaming_edge_func = lib.srl__recording_clip_route__get_streaming_edge
     get_stream_url_func = lib.srl__recording_clip_route__get_stream_url
     get_download_url_func = lib.srl__recording_clip_route__get_download_url
     get_snapshot_url_func = lib.srl__recording_clip_route__get_snapshot_url
@@ -436,7 +436,7 @@ class RecordingStreamRoute(RecordingRouteBase):
     get_scheme_func = lib.srl__recording_stream_route__get_url_scheme
     set_scheme_func = lib.srl__recording_stream_route__set_url_scheme
     get_base_url_func = lib.srl__recording_stream_route__get_base_url
-    get_recording_streamer_func = lib.srl__recording_stream_route__get_recording_streamer
+    get_streaming_edge_func = lib.srl__recording_stream_route__get_streaming_edge
 
     def get_url(self, native_function):
         """
@@ -594,22 +594,6 @@ class StreamRouter(NativeObject):
 
         return ArrowAsnsService(svc)
 
-    def assign_recording_streamer_service(self, aws_region):
-        """
-        Assign recording streamer service from a given AWS region.
-        """
-        assert type(aws_region) is str
-
-        aws_region = aws_region.encode('utf-8')
-
-        assert self.raw_ptr is not None
-
-        svc = lib.srl__router__assign_recording_streamer_service(self.raw_ptr, aws_region)
-        if not svc:
-            return None
-
-        return RecordingStreamerService(svc)
-
     def construct_master_camera_route(self, cdn_region, camera):
         """
         Construct master camera route.
@@ -660,30 +644,32 @@ class StreamRouter(NativeObject):
 
             return SpeakerRoute(route, proto=self.config.stream_proto)
 
-    def construct_recording_route(self, aws_region, recording_id):
-        assert type(aws_region) is str
+    def construct_recording_route(self, cdn_region, recording_id):
+        assert type(cdn_region) is str
         assert type(recording_id) is str
 
-        aws_region = aws_region.encode('utf-8')
+        cdn_region = self.cdn_region_map[cdn_region]
+
         recording_id = recording_id.encode('utf-8')
 
         return self.construct_recording_streamer_route(
             lib.srl__router__construct_recording_route,
             RecordingRoute,
-            aws_region,
+            cdn_region,
             recording_id)
 
-    def construct_recording_clip_route(self, aws_region, clip_id):
-        assert type(aws_region) is str
+    def construct_recording_clip_route(self, cdn_region, clip_id):
+        assert type(cdn_region) is str
         assert type(clip_id) is str
 
-        aws_region = aws_region.encode('utf-8')
+        cdn_region = self.cdn_region_map[cdn_region]
+
         clip_id = clip_id.encode('utf-8')
 
         return self.construct_recording_streamer_route(
             lib.srl__router__construct_recording_clip_route,
             RecordingClipRoute,
-            aws_region,
+            cdn_region,
             clip_id)
 
     def construct_recording_stream_route(self, service_id, stream_id):

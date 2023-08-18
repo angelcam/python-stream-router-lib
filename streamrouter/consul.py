@@ -190,17 +190,6 @@ class NativeService(NativeObject):
         return self.params.get(name)
 
 
-class AwsServiceMixin:
-
-    get_aws_region_func = None
-
-    @cached_property
-    def aws_region(self):
-        assert self.raw_ptr is not None
-
-        return get_string(self.get_aws_region_func, self.raw_ptr)
-
-
 class CdnServiceMixin:
 
     get_cdn_region_func = None
@@ -298,17 +287,6 @@ class ArrowAsnsService(CdnServiceMixin, ServiceCapacityMixin, Service):
     get_capacity_func = lib.srl__arrow_asns_service__get_capacity
 
 
-class RecordingStreamerService(AwsServiceMixin, Service):
-    """
-    Recording streamer service.
-    """
-
-    free_func = lib.srl__recording_streamer_service__free
-    to_service_func = lib.srl__recording_streamer_service__to_service
-
-    get_aws_region_func = lib.srl__recording_streamer_service__get_aws_region
-
-
 class Consul(NativeObject):
     """
     Local image of a remote Consul based service DB.
@@ -398,16 +376,6 @@ class Consul(NativeObject):
             lib.srl__arrow_asns_services__next,
             lib.srl__arrow_asns_services__free,
             ArrowAsnsService)
-
-    def get_recording_streamer_services(self):
-        """
-        Get a list of all recording streamer services.
-        """
-        return self.get_services(
-            lib.srl__consul__get_all_recording_streamer_services,
-            lib.srl__recording_streamer_services__next,
-            lib.srl__recording_streamer_services__free,
-            RecordingStreamerService)
 
     def add_update_callback(self, cb):
         """

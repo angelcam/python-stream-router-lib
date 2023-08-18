@@ -1,7 +1,7 @@
 from .config import RouterConfig
 from .consul import (
     Service,
-    ArrowAsnsService, RecordingStreamerService, StreamingMasterService, StreamingEdgeService,
+    ArrowAsnsService, StreamingMasterService, StreamingEdgeService,
     Consul,
     SynchronizationError,
 )
@@ -15,7 +15,7 @@ from .router import (
 __all__ = (
     'RouterConfig',
     'Service',
-    'ArrowAsnsService', 'RecordingStreamerService', 'StreamingMasterService', 'StreamingEdgeService',
+    'ArrowAsnsService', 'StreamingMasterService', 'StreamingEdgeService',
     'Consul',
     'SynchronizationError',
     'Device',

@@ -121,7 +121,7 @@ class StreamRouterLibrary(Library):
 
     library = 'streamrouter'
 
-    required_lib_version = (0, 11, 1)
+    required_lib_version = (0, 12, 0)
 
     LOG_LEVEL_TRACE = 0
     LOG_LEVEL_DEBUG = 1
@@ -137,9 +137,6 @@ class StreamRouterLibrary(Library):
 
     CDN_REGION_NA = 0
     CDN_REGION_EU = 1
-
-    AWS_REGION_EU_CENTRAL_1 = 'eu-central-1'
-    AWS_REGION_US_WEST_2 = 'us-west-2'
 
     STREAM_FORMAT_HLS = 0
     STREAM_FORMAT_MP4 = 1
@@ -253,13 +250,12 @@ class StreamRouterLibrary(Library):
                 [c_void_p, c_int, c_void_p], c_void_p),
             ('srl__router__assign_streaming_edge_service', [c_void_p, c_int, c_char_p], c_void_p),
             ('srl__router__assign_arrow_asns_service', [c_void_p, c_int, c_char_p], c_void_p),
-            ('srl__router__assign_recording_streamer_service', [c_void_p, c_char_p], c_void_p),
             ('srl__router__construct_edge_camera_route', [c_void_p, c_int, c_void_p], c_void_p),
             ('srl__router__construct_master_camera_route', [c_void_p, c_int, c_void_p], c_void_p),
             ('srl__router__construct_speaker_route', [c_void_p, c_int, c_void_p], c_void_p),
-            ('srl__router__construct_recording_route', [c_void_p, c_char_p, c_char_p], c_void_p),
+            ('srl__router__construct_recording_route', [c_void_p, c_int, c_char_p], c_void_p),
             ('srl__router__construct_recording_clip_route',
-                [c_void_p, c_char_p, c_char_p], c_void_p),
+                [c_void_p, c_int, c_char_p], c_void_p),
             ('srl__router__construct_recording_stream_route',
                 [c_void_p, c_char_p, c_char_p], c_void_p),
             ('srl__router__create_streaming_server_access_token',
@@ -279,7 +275,6 @@ class StreamRouterLibrary(Library):
             ('srl__consul__get_all_streaming_edge_services', [c_void_p], c_void_p),
             ('srl__consul__get_all_streaming_master_services', [c_void_p], c_void_p),
             ('srl__consul__get_all_arrow_asns_services', [c_void_p], c_void_p),
-            ('srl__consul__get_all_recording_streamer_services', [c_void_p], c_void_p),
 
             # srl__device__XXX functions:
             ('srl__device__new_common', [c_char_p], c_void_p),
@@ -313,7 +308,7 @@ class StreamRouterLibrary(Library):
             ('srl__speaker_route__free', [c_void_p]),
 
             # srl__recording_route__XXX functions:
-            ('srl__recording_route__get_recording_streamer', [c_void_p], c_void_p),
+            ('srl__recording_route__get_streaming_edge', [c_void_p], c_void_p),
             ('srl__recording_route__get_url_scheme', [c_void_p, c_char_p, c_size_t], c_size_t),
             ('srl__recording_route__set_url_scheme', [c_void_p, c_char_p]),
             ('srl__recording_route__get_base_url', [c_void_p, c_char_p, c_size_t], c_size_t),
@@ -326,7 +321,7 @@ class StreamRouterLibrary(Library):
             ('srl__recording_route__free', [c_void_p]),
 
             # srl__recording_clip_route__XXX functions:
-            ('srl__recording_clip_route__get_recording_streamer', [c_void_p], c_void_p),
+            ('srl__recording_clip_route__get_streaming_edge', [c_void_p], c_void_p),
             ('srl__recording_clip_route__get_url_scheme',
                 [c_void_p, c_char_p, c_size_t], c_size_t),
             ('srl__recording_clip_route__set_url_scheme', [c_void_p, c_char_p]),
@@ -340,7 +335,7 @@ class StreamRouterLibrary(Library):
             ('srl__recording_clip_route__free', [c_void_p]),
 
             # srl__recording_stream_route__XXX functions:
-            ('srl__recording_stream_route__get_recording_streamer', [c_void_p], c_void_p),
+            ('srl__recording_stream_route__get_streaming_edge', [c_void_p], c_void_p),
             ('srl__recording_stream_route__get_url_scheme',
                 [c_void_p, c_char_p, c_size_t], c_size_t),
             ('srl__recording_stream_route__set_url_scheme', [c_void_p, c_char_p]),
@@ -381,11 +376,6 @@ class StreamRouterLibrary(Library):
             ('srl__arrow_asns_service__to_service', [c_void_p], c_void_p),
             ('srl__arrow_asns_service__free', [c_void_p]),
 
-            # srl__recording_streamer_service__XXX functions:
-            ('srl__recording_streamer_service__get_aws_region', [c_void_p, c_char_p, c_size_t], c_size_t),
-            ('srl__recording_streamer_service__to_service', [c_void_p], c_void_p),
-            ('srl__recording_streamer_service__free', [c_void_p]),
-
             # srl__service___XXX functions:
             ('srl__service__get_id', [c_void_p, c_char_p, c_size_t], c_size_t),
             ('srl__service__get_node_id', [c_void_p, c_char_p, c_size_t], c_size_t),
@@ -418,10 +408,6 @@ class StreamRouterLibrary(Library):
             # srl__arrow_asns_services__XXX functions:
             ('srl__arrow_asns_services__next', [c_void_p], c_void_p),
             ('srl__arrow_asns_services__free', [c_void_p]),
-
-            # srl__recording_streamer_services__XXX functions:
-            ('srl__recording_streamer_services__next', [c_void_p], c_void_p),
-            ('srl__recording_streamer_services__free', [c_void_p]),
         ))
 
 
