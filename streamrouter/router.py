@@ -243,14 +243,17 @@ class CameraRoute(Route):
 
         return get_string(lib.srl__camera_route__get_hls_base_url, self.raw_ptr)
 
-    def get_url(self, stream_format, ttl=None):
+    def get_url(self, stream_format, ttl=None, content_ttl=None):
         """
         Get stream URL for a given format.
         """
         if ttl is None:
             ttl = 0
+        if content_ttl is None:
+            content_ttl = 0
 
         assert type(ttl) is int
+        assert type(content_ttl) is int
 
         if not self.is_supported_format(stream_format):
             raise UnsupportedStreamFormat(stream_format)
@@ -261,19 +264,20 @@ class CameraRoute(Route):
             lib.srl__camera_route__get_url,
             self.raw_ptr,
             native_stream_format,
-            ttl)
+            ttl,
+            content_ttl)
 
-    def get_mjpeg_url(self, ttl=None):
-        return self.get_url(self.STREAM_FORMAT_MJPEG, ttl=ttl)
+    def get_mjpeg_url(self, ttl=None, content_ttl=None):
+        return self.get_url(self.STREAM_FORMAT_MJPEG, ttl=ttl, content_ttl=content_ttl)
 
-    def get_hls_url(self, ttl=None):
-        return self.get_url(self.STREAM_FORMAT_HLS, ttl=ttl)
+    def get_hls_url(self, ttl=None, content_ttl=None):
+        return self.get_url(self.STREAM_FORMAT_HLS, ttl=ttl, content_ttl=content_ttl)
 
-    def get_mp4_url(self, ttl=None):
-        return self.get_url(self.STREAM_FORMAT_MP4, ttl=ttl)
+    def get_mp4_url(self, ttl=None, content_ttl=None):
+        return self.get_url(self.STREAM_FORMAT_MP4, ttl=ttl, content_ttl=content_ttl)
 
-    def get_mpegts_url(self, ttl=None):
-        return self.get_url(self.STREAM_FORMAT_MPEGTS, ttl=ttl)
+    def get_mpegts_url(self, ttl=None, content_ttl=None):
+        return self.get_url(self.STREAM_FORMAT_MPEGTS, ttl=ttl, content_ttl=content_ttl)
 
     def get_snapshot_url(self, ttl=None):
         return self.get_url(self.LIVE_SNAPSHOT, ttl=ttl)
@@ -298,7 +302,30 @@ class SpeakerRoute(Route):
         """
         return self.get_service(lib.srl__speaker_route__get_streaming_master, StreamingMasterService)
 
-    def get_url(self, native_function, ttl=None):
+    def get_play_url(self, ttl=None, content_ttl=None):
+        """
+        Get URL for audio stream playback.
+        """
+        assert self.raw_ptr is not None
+
+        if ttl is None:
+            ttl = 0
+        if content_ttl is None:
+            content_ttl = 0
+
+        assert type(ttl) is int
+        assert type(content_ttl) is int
+
+        return get_string(
+            lib.srl__speaker_route__get_play_url,
+            self.raw_ptr,
+            ttl,
+            content_ttl)
+
+    def get_stop_url(self, ttl=None):
+        """
+        Get URL for stopping audio playback.
+        """
         assert self.raw_ptr is not None
 
         if ttl is None:
@@ -306,25 +333,30 @@ class SpeakerRoute(Route):
 
         assert type(ttl) is int
 
-        return get_string(native_function, self.raw_ptr, ttl)
+        return get_string(
+            lib.srl__speaker_route__get_stop_url,
+            self.raw_ptr,
+            ttl)
 
-    def get_play_url(self, ttl=None):
-        """
-        Get URL for audio stream playback.
-        """
-        return self.get_url(lib.srl__speaker_route__get_play_url, ttl=ttl)
-
-    def get_stop_url(self, ttl=None):
-        """
-        Get URL for stopping audio playback.
-        """
-        return self.get_url(lib.srl__speaker_route__get_stop_url, ttl=ttl)
-
-    def get_web_rtc_signaling_url(self, ttl=None):
+    def get_web_rtc_signaling_url(self, ttl=None, content_ttl=None):
         """
         Get WebRTC signaling URL.
         """
-        return self.get_url(lib.srl__speaker_route__get_web_rtc_signaling_url, ttl=ttl)
+        assert self.raw_ptr is not None
+
+        if ttl is None:
+            ttl = 0
+        if content_ttl is None:
+            content_ttl = 0
+
+        assert type(ttl) is int
+        assert type(content_ttl) is int
+
+        return get_string(
+            lib.srl__speaker_route__get_web_rtc_signaling_url,
+            self.raw_ptr,
+            ttl,
+            content_ttl)
 
 
 class RecordingRouteBase(Route):
@@ -694,14 +726,17 @@ class StreamRouter(NativeObject):
 
         return route_factory(route, proto=self.config.stream_proto)
 
-    def get_streaming_server_access_token(self, device_id, ttl=None):
+    def get_streaming_server_access_token(self, device_id, ttl=None, content_ttl=None):
         """
         Get streaming server access token for a given device ID.
         """
         if ttl is None:
             ttl = 0
+        if content_ttl is None:
+            content_ttl = 0
 
         assert type(ttl) is int
+        assert type(content_ttl) is int
 
         device_id = str(device_id)
         device_id = device_id.encode('utf-8')
@@ -712,7 +747,8 @@ class StreamRouter(NativeObject):
             lib.srl__router__create_streaming_server_access_token,
             self.raw_ptr,
             device_id,
-            ttl)
+            ttl,
+            content_ttl)
 
     def get_recording_streamer_access_token(self, ttl=None):
         """

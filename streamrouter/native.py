@@ -121,7 +121,7 @@ class StreamRouterLibrary(Library):
 
     library = 'streamrouter'
 
-    required_lib_version = (0, 13, 0)
+    required_lib_version = (0, 14, 0)
 
     LOG_LEVEL_TRACE = 0
     LOG_LEVEL_DEBUG = 1
@@ -259,7 +259,7 @@ class StreamRouterLibrary(Library):
             ('srl__router__construct_recording_stream_route',
                 [c_void_p, c_char_p, c_char_p], c_void_p),
             ('srl__router__create_streaming_server_access_token',
-                [c_void_p, c_char_p, c_uint32, c_char_p, c_size_t], c_size_t),
+                [c_void_p, c_char_p, c_uint32, c_uint32, c_char_p, c_size_t], c_size_t),
             ('srl__router__create_recording_streamer_access_token',
                 [c_void_p, c_uint32, c_char_p, c_size_t], c_size_t),
             ('srl__router__free', [c_void_p]),
@@ -291,7 +291,7 @@ class StreamRouterLibrary(Library):
             ('srl__camera_route__get_base_url', [c_void_p, c_char_p, c_size_t], c_size_t),
             ('srl__camera_route__get_hls_base_url', [c_void_p, c_char_p, c_size_t], c_size_t),
             ('srl__camera_route__get_url',
-                [c_void_p, c_int, c_uint32, c_char_p, c_size_t], c_size_t),
+                [c_void_p, c_int, c_uint32, c_uint32, c_char_p, c_size_t], c_size_t),
             ('srl__camera_route__free', [c_void_p]),
 
             # srl__speaker_route__XXX functions:
@@ -300,11 +300,11 @@ class StreamRouterLibrary(Library):
             ('srl__speaker_route__set_url_scheme', [c_void_p, c_char_p]),
             ('srl__speaker_route__get_base_url', [c_void_p, c_char_p, c_size_t], c_size_t),
             ('srl__speaker_route__get_play_url',
-                [c_void_p, c_uint32, c_char_p, c_size_t], c_size_t),
+                [c_void_p, c_uint32, c_uint32, c_char_p, c_size_t], c_size_t),
             ('srl__speaker_route__get_stop_url',
                 [c_void_p, c_uint32, c_char_p, c_size_t], c_size_t),
             ('srl__speaker_route__get_web_rtc_signaling_url',
-                [c_void_p, c_uint32, c_char_p, c_size_t], c_size_t),
+                [c_void_p, c_uint32, c_uint32, c_char_p, c_size_t], c_size_t),
             ('srl__speaker_route__free', [c_void_p]),
 
             # srl__recording_route__XXX functions:
